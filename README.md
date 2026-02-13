@@ -196,6 +196,27 @@ setup_windows.bat
 run.bat
 ```
 
+## LD 매크로 JSON을 우리 config로 변환하기 (추천)
+질문 주신 것처럼, LD 매크로 원본(JSON operations)을 그대로 들고 가기보다,
+**`instances[].taps`로 변환해서 우리 스크립트에서 통합 관리**하는 게 유지보수에 유리합니다.
+
+1) LD에서 매크로 JSON 저장
+2) 변환 실행
+```bat
+python ldmacro_to_config.py --input delete_macro.json --output generated_taps.json
+```
+3) `generated_taps.json` 내용을 `config.json`의 `instances[].taps`에 붙여넣기
+
+좌표가 너무 크게 나오면 스케일 옵션 사용:
+```bat
+python ldmacro_to_config.py --input delete_macro.json --output generated_taps.json --scale-x 0.5 --scale-y 0.5
+```
+
+> 참고: 변환기는 `PutMultiTouch`의 `state=1` 이벤트를 탭으로 사용합니다.
+> (`state=0`, 빈 points 이벤트는 무시)
+
+---
+
 ## 실행 중 멈추는 방법 (중요)
 1. 실행한 **같은 CMD 창**에서 `Ctrl + C`를 누르세요.
 2. 이번 버전부터는 모든 워커에 정지 신호를 보내고 순차 종료합니다.
