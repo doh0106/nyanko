@@ -140,27 +140,39 @@ def load_config(path: Path) -> AppConfig:
     )
 
 
-def worker(config: AppConfig, inst: InstanceConfig) -> None:
+def wait_or_stop(stop_event: threading.Event, seconds: float) -> bool:
+    """Sleep up to seconds, but return early when stop_event is set.
+
+    Returns True if stopped early, otherwise False.
+    """
+    if seconds <= 0:
+        return stop_event.is_set()
+    return stop_event.wait(timeout=seconds)
+
+
+def worker(config: AppConfig, inst: InstanceConfig, stop_event: threading.Event) -> None:
     try:
         if not inst.enabled:
             print(f"[{inst.name}] disabled -> skip")
             return
 
         print(f"[{inst.name}] waiting {inst.startup_wait_s}s before start")
-        time.sleep(inst.startup_wait_s)
+        if wait_or_stop(stop_event, inst.startup_wait_s):
+            print(f"[{inst.name}] stop requested before startup")
+            return
 
         ensure_device(inst.adb_serial, retries=inst.connect_retries, retry_delay_s=inst.connect_retry_delay_s)
         print(f"[{inst.name}] connected: {inst.adb_serial}")
 
         loops = 0
-        while True:
+        while not stop_event.is_set():
             loops += 1
             loop_started = time.time()
             print(f"[{inst.name}] loop {loops} start")
 
             for i, action in enumerate(inst.taps, start=1):
-                if action.wait_before_s > 0:
-                    time.sleep(action.wait_before_s)
+                if wait_or_stop(stop_event, action.wait_before_s):
+                    break
 
                 elapsed = time.time() - loop_started
                 if action.action == "tap":
@@ -177,8 +189,12 @@ def worker(config: AppConfig, inst: InstanceConfig) -> None:
                 else:
                     raise RuntimeError(f"[{inst.name}] unsupported action: {action.action}")
 
-                if action.delay_after_s > 0:
-                    time.sleep(action.delay_after_s)
+                if wait_or_stop(stop_event, action.delay_after_s):
+                    break
+
+            if stop_event.is_set():
+                print(f"[{inst.name}] stop requested")
+                break
 
             if inst.screenshot_every_loops > 0 and loops % inst.screenshot_every_loops == 0:
                 ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -190,7 +206,9 @@ def worker(config: AppConfig, inst: InstanceConfig) -> None:
                 print(f"[{inst.name}] reached iterations={config.iterations} -> stop")
                 break
 
-            time.sleep(inst.loop_delay_s)
+            if wait_or_stop(stop_event, inst.loop_delay_s):
+                print(f"[{inst.name}] stop requested")
+                break
     except Exception as exc:
         print(f"[{inst.name}] ERROR: {exc}")
 
@@ -202,21 +220,24 @@ def main() -> int:
 
     app_config = load_config(Path(args.config))
     app_config.log_dir.mkdir(parents=True, exist_ok=True)
+    stop_event = threading.Event()
 
     threads: list[threading.Thread] = []
     for inst in app_config.instances:
-        t = threading.Thread(target=worker, args=(app_config, inst), daemon=False)
+        t = threading.Thread(target=worker, args=(app_config, inst, stop_event), daemon=False)
         t.start()
         threads.append(t)
 
     failed = False
-    for t in threads:
-        try:
+    try:
+        for t in threads:
             t.join()
-        except KeyboardInterrupt:
-            failed = True
-            print("Interrupted by user")
-            break
+    except KeyboardInterrupt:
+        failed = True
+        print("Interrupted by user, requesting stop...")
+        stop_event.set()
+        for t in threads:
+            t.join(timeout=5)
 
     return 1 if failed else 0
 

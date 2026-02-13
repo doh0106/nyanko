@@ -184,6 +184,13 @@ setup_windows.bat
 run.bat
 ```
 
+## 실행 중 멈추는 방법 (중요)
+1. 실행한 **같은 CMD 창**에서 `Ctrl + C`를 누르세요.
+2. 이번 버전부터는 모든 워커에 정지 신호를 보내고 순차 종료합니다.
+3. PowerShell에서 안 먹으면 `Ctrl + Break` 또는 창 닫기로 종료 가능합니다.
+
+> `run.bat`를 더블클릭으로 실행했을 때 창이 바로 닫히면, CMD를 직접 열어 실행하면 종료 제어가 더 쉽습니다.
+
 ## 설정(config.json)에서 꼭 알아야 할 것
 - `iterations`: `0`이면 무한 반복
 - `instances[].adb_serial`: 각 LD 인스턴스 ADB 주소 (예: `127.0.0.1:5555`)
