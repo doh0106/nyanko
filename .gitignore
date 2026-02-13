@@ -2,4 +2,3 @@ __pycache__/
 *.pyc
 logs/
 modules/*.json
-config.json
