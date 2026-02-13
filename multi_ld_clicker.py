@@ -8,11 +8,20 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import io
 import json
+import os
 import subprocess
+import sys
 import threading
 import time
 import unicodedata
+
+# Force UTF-8 stdout/stderr on Windows (prevents CP949 codec errors)
+if sys.platform == "win32":
+    os.environ.setdefault("PYTHONUTF8", "1")
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path

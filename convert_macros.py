@@ -10,6 +10,15 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import io
+import os
+import sys
+
+# Force UTF-8 stdout/stderr on Windows (prevents CP949 codec errors)
+if sys.platform == "win32":
+    os.environ.setdefault("PYTHONUTF8", "1")
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 from pathlib import Path
 
 from macro_converter import convert_macro_folder
