@@ -15,7 +15,7 @@ where adb >nul 2>nul
 if errorlevel 1 (
   echo [ERROR] adb not found in PATH.
   echo         Install Android platform-tools and add to PATH.
-  echo         (Optional) winget install --id Google.AndroidSDK.PlatformTools -e
+  echo         Optional: winget install --id Google.AndroidSDK.PlatformTools -e
   exit /b 1
 )
 adb version

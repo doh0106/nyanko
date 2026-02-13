@@ -10,12 +10,56 @@
       "loop_delay_s": 2,
       "screenshot_every_loops": 0,
       "taps": [
-        { "action": "tap", "x": 1200, "y": 680, "wait_before_s": 0.0, "delay_after_s": 1.2 },
-        { "action": "screenshot", "screenshot_name": "after_start", "wait_before_s": 0.0, "delay_after_s": 0.3 },
-        { "action": "tap", "x": 1110, "y": 530, "wait_before_s": 0.0, "delay_after_s": 0.7 },
-        { "action": "sleep", "wait_before_s": 0.0, "delay_after_s": 1.5 },
-        { "action": "tap", "x": 965, "y": 615, "wait_before_s": 0.0, "delay_after_s": 1.0 }
-      ]
+        {
+          "action": "stop_app",
+          "app_package": "com.example.game",
+          "delay_after_s": 0.3
+        },
+        {
+          "action": "clear_data",
+          "app_package": "com.example.game",
+          "delay_after_s": 0.8
+        },
+        {
+          "action": "start_app",
+          "app_package": "com.example.game",
+          "delay_after_s": 3.0
+        },
+        {
+          "action": "tap",
+          "x": 1200,
+          "y": 680,
+          "wait_before_s": 0.0,
+          "delay_after_s": 1.2
+        },
+        {
+          "action": "screenshot",
+          "screenshot_name": "after_start",
+          "wait_before_s": 0.0,
+          "delay_after_s": 0.3
+        },
+        {
+          "action": "tap",
+          "x": 1110,
+          "y": 530,
+          "wait_before_s": 0.0,
+          "delay_after_s": 0.7
+        },
+        {
+          "action": "sleep",
+          "wait_before_s": 0.0,
+          "delay_after_s": 1.5
+        },
+        {
+          "action": "tap",
+          "x": 965,
+          "y": 615,
+          "wait_before_s": 0.0,
+          "delay_after_s": 1.0
+        }
+      ],
+      "connect_retries": 8,
+      "connect_retry_delay_s": 2.0
     },
     {
       "name": "ld-2",
@@ -25,12 +69,56 @@
       "loop_delay_s": 2,
       "screenshot_every_loops": 0,
       "taps": [
-        { "action": "tap", "x": 1200, "y": 680, "wait_before_s": 0.0, "delay_after_s": 1.2 },
-        { "action": "screenshot", "screenshot_name": "after_start", "wait_before_s": 0.0, "delay_after_s": 0.3 },
-        { "action": "tap", "x": 1110, "y": 530, "wait_before_s": 0.0, "delay_after_s": 0.7 },
-        { "action": "sleep", "wait_before_s": 0.0, "delay_after_s": 1.5 },
-        { "action": "tap", "x": 965, "y": 615, "wait_before_s": 0.0, "delay_after_s": 1.0 }
-      ]
+        {
+          "action": "stop_app",
+          "app_package": "com.example.game",
+          "delay_after_s": 0.3
+        },
+        {
+          "action": "clear_data",
+          "app_package": "com.example.game",
+          "delay_after_s": 0.8
+        },
+        {
+          "action": "start_app",
+          "app_package": "com.example.game",
+          "delay_after_s": 3.0
+        },
+        {
+          "action": "tap",
+          "x": 1200,
+          "y": 680,
+          "wait_before_s": 0.0,
+          "delay_after_s": 1.2
+        },
+        {
+          "action": "screenshot",
+          "screenshot_name": "after_start",
+          "wait_before_s": 0.0,
+          "delay_after_s": 0.3
+        },
+        {
+          "action": "tap",
+          "x": 1110,
+          "y": 530,
+          "wait_before_s": 0.0,
+          "delay_after_s": 0.7
+        },
+        {
+          "action": "sleep",
+          "wait_before_s": 0.0,
+          "delay_after_s": 1.5
+        },
+        {
+          "action": "tap",
+          "x": 965,
+          "y": 615,
+          "wait_before_s": 0.0,
+          "delay_after_s": 1.0
+        }
+      ],
+      "connect_retries": 8,
+      "connect_retry_delay_s": 2.0
     }
   ]
 }
