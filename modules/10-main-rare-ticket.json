@@ -13,14 +13,14 @@
   {
     "action": "tap",
     "x": 720,
-    "y": 839,
+    "y": 243,
     "wait_before_s": 1.902,
     "delay_after_s": 0.2
   },
   {
     "action": "tap",
     "x": 469,
-    "y": 918,
+    "y": 265,
     "wait_before_s": 2.033,
     "delay_after_s": 0.2
   },
@@ -32,28 +32,28 @@
   {
     "action": "tap",
     "x": 718,
-    "y": 852,
+    "y": 246,
     "wait_before_s": 1.596,
     "delay_after_s": 0.2
   },
   {
     "action": "tap",
     "x": 593,
-    "y": 1280,
+    "y": 370,
     "wait_before_s": 1.675,
     "delay_after_s": 0.2
   },
   {
     "action": "tap",
     "x": 330,
-    "y": 1201,
+    "y": 347,
     "wait_before_s": 2.075,
     "delay_after_s": 0.2
   },
   {
     "action": "tap",
     "x": 330,
-    "y": 1201,
+    "y": 347,
     "wait_before_s": 1.467,
     "delay_after_s": 0.2
   }

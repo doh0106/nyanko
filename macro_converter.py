@@ -32,8 +32,13 @@ def _extract_operations(raw: dict) -> list[dict]:
     return ops
 
 
-def _compute_coord_scale(ops: list[dict], target_w: int, target_h: int) -> tuple[float, float]:
-    """Compute scale factors from LD internal coordinates to display pixels."""
+def _detect_ld_coord_divisor(ops: list[dict], res_w: int, res_h: int) -> float:
+    """Detect LD internal coordinate divisor from max observed coordinates.
+
+    LD Player stores touch coordinates as pixel * divisor, where divisor
+    is uniform for both axes (~22.5 for 320dpi). We compute it from the
+    larger axis (more data points = more likely to have near-edge taps).
+    """
     max_x = 0.0
     max_y = 0.0
     for op in ops:
@@ -43,9 +48,13 @@ def _compute_coord_scale(ops: list[dict], target_w: int, target_h: int) -> tuple
             max_x = max(max_x, float(p.get("x", 0)))
             max_y = max(max_y, float(p.get("y", 0)))
 
-    if max_x == 0 or max_y == 0:
-        return (1.0, 1.0)
-    return (target_w / max_x, target_h / max_y)
+    if max_x == 0 and max_y == 0:
+        return 1.0
+
+    # Use the axis with wider resolution for a more reliable estimate
+    ratio_x = max_x / res_w if res_w > 0 else 0
+    ratio_y = max_y / res_h if res_h > 0 else 0
+    return max(ratio_x, ratio_y)
 
 
 def _parse_operations(
@@ -117,15 +126,16 @@ def convert_macro_file(
     raw = json.loads(path.read_text(encoding="utf-8"))
     ops = _extract_operations(raw)
 
-    # LD records store coordinates in an internal space larger than display pixels
+    # LD records store coordinates as pixel * divisor (uniform for both axes)
     info = raw.get("recordInfo", {})
     res_w = int(info.get("resolutionWidth", 0))
     res_h = int(info.get("resolutionHeight", 0))
 
     if res_w > 0 and res_h > 0:
-        auto_sx, auto_sy = _compute_coord_scale(ops, res_w, res_h)
-        scale_x *= auto_sx
-        scale_y *= auto_sy
+        divisor = _detect_ld_coord_divisor(ops, res_w, res_h)
+        if divisor > 1:
+            scale_x /= divisor
+            scale_y /= divisor
 
     return _parse_operations(ops, scale_x, scale_y, default_delay_s)
 
