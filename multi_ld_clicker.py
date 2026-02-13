@@ -304,9 +304,10 @@ def worker(config: AppConfig, inst: InstanceConfig, stop_event: threading.Event)
                     print(f"[{inst.name}] stop_app#{i} {action.app_package} t+{elapsed:.2f}s")
                 elif action.action == "clipboard":
                     if not action.text:
-                        raise RuntimeError(f"[{inst.name}] clipboard needs text")
-                    clipboard_input(inst.adb_serial, action.text)
-                    print(f"[{inst.name}] clipboard#{i} t+{elapsed:.2f}s")
+                        pass  # empty clipboard clear from LD macro, skip
+                    else:
+                        clipboard_input(inst.adb_serial, action.text)
+                        print(f"[{inst.name}] clipboard#{i} t+{elapsed:.2f}s")
                 elif action.action == "app_switch":
                     app_switch(inst.adb_serial)
                     print(f"[{inst.name}] app_switch#{i} t+{elapsed:.2f}s")
