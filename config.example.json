@@ -85,13 +85,13 @@
           "app_package": "com.example.game",
           "delay_after_s": 3.0
         },
-        {"module": "튜토리얼_스킵"},
+        {"module": "tutorial-skip"},
         {
           "action": "screenshot",
           "screenshot_name": "after_tutorial",
           "delay_after_s": 0.5
         },
-        {"module": "가챠_진행", "scale_x": 0.5, "scale_y": 0.5},
+        {"module": "gacha-pull", "scale_x": 0.5, "scale_y": 0.5},
         {
           "action": "screenshot",
           "screenshot_name": "after_gacha",

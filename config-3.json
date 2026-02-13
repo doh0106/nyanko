@@ -12,43 +12,46 @@
       "screenshot_every_loops": 0,
       "steps": [
         {
-          "module": "1.동의부터한국클"
+          "module": "00-home-download-agree"
         },
         {
-          "module": "2.한국클-슬롯템구매-메인화면"
+          "module": "01-agree-to-korea"
         },
         {
-          "module": "3.메인화면-몽골클"
+          "module": "02-korea-slot-buy-main"
         },
         {
-          "module": "4.몽골클-업글-중국클"
+          "module": "03-main-mongolia"
         },
         {
-          "module": "5.중국클-태국클"
+          "module": "04-mongolia-upgrade-china"
         },
         {
-          "module": "6.태국클-파워업-캄보디아클(애매)"
+          "module": "05-china-thailand"
         },
         {
-          "module": "7.캄보디아클-필리핀클"
+          "module": "06-thailand-powerup-cambodia"
         },
         {
-          "module": "8.필리핀클-일본클-회색티켓수령"
+          "module": "07-cambodia-philippines"
         },
         {
-          "module": "9.회색티켓수령-메인"
+          "module": "08-philippines-japan-gray-ticket"
         },
         {
-          "module": "10.메인-레어티켓수령-메인"
+          "module": "09-gray-ticket-main"
         },
         {
-          "module": "11.메인-골드회원-메인"
+          "module": "10-main-rare-ticket"
         },
         {
-          "module": "12.메인-11뽑-뽑기화면"
+          "module": "11-main-gold-member"
         },
         {
-          "module": "13.뽑기화면-8티켓뽑-냉장고"
+          "module": "12-main-11pull-gacha"
+        },
+        {
+          "module": "13-gacha-8ticket-storage"
         },
         {
           "action": "screenshot",
@@ -56,7 +59,7 @@
           "delay_after_s": 0.5
         },
         {
-          "module": "14.냉장고-이어하기코드"
+          "module": "14-storage-transfer-code"
         },
         {
           "action": "screenshot",
@@ -64,7 +67,7 @@
           "delay_after_s": 0.5
         },
         {
-          "module": "15.이어하기코드-저장내역지우기-홈화면"
+          "module": "15-transfer-code-clear-home"
         }
       ],
       "connect_retries": 8,
@@ -79,43 +82,46 @@
       "screenshot_every_loops": 0,
       "steps": [
         {
-          "module": "1.동의부터한국클"
+          "module": "00-home-download-agree"
         },
         {
-          "module": "2.한국클-슬롯템구매-메인화면"
+          "module": "01-agree-to-korea"
         },
         {
-          "module": "3.메인화면-몽골클"
+          "module": "02-korea-slot-buy-main"
         },
         {
-          "module": "4.몽골클-업글-중국클"
+          "module": "03-main-mongolia"
         },
         {
-          "module": "5.중국클-태국클"
+          "module": "04-mongolia-upgrade-china"
         },
         {
-          "module": "6.태국클-파워업-캄보디아클(애매)"
+          "module": "05-china-thailand"
         },
         {
-          "module": "7.캄보디아클-필리핀클"
+          "module": "06-thailand-powerup-cambodia"
         },
         {
-          "module": "8.필리핀클-일본클-회색티켓수령"
+          "module": "07-cambodia-philippines"
         },
         {
-          "module": "9.회색티켓수령-메인"
+          "module": "08-philippines-japan-gray-ticket"
         },
         {
-          "module": "10.메인-레어티켓수령-메인"
+          "module": "09-gray-ticket-main"
         },
         {
-          "module": "11.메인-골드회원-메인"
+          "module": "10-main-rare-ticket"
         },
         {
-          "module": "12.메인-11뽑-뽑기화면"
+          "module": "11-main-gold-member"
         },
         {
-          "module": "13.뽑기화면-8티켓뽑-냉장고"
+          "module": "12-main-11pull-gacha"
+        },
+        {
+          "module": "13-gacha-8ticket-storage"
         },
         {
           "action": "screenshot",
@@ -123,7 +129,7 @@
           "delay_after_s": 0.5
         },
         {
-          "module": "14.냉장고-이어하기코드"
+          "module": "14-storage-transfer-code"
         },
         {
           "action": "screenshot",
@@ -131,7 +137,7 @@
           "delay_after_s": 0.5
         },
         {
-          "module": "15.이어하기코드-저장내역지우기-홈화면"
+          "module": "15-transfer-code-clear-home"
         }
       ],
       "connect_retries": 8,
@@ -146,43 +152,46 @@
       "screenshot_every_loops": 0,
       "steps": [
         {
-          "module": "1.동의부터한국클"
+          "module": "00-home-download-agree"
         },
         {
-          "module": "2.한국클-슬롯템구매-메인화면"
+          "module": "01-agree-to-korea"
         },
         {
-          "module": "3.메인화면-몽골클"
+          "module": "02-korea-slot-buy-main"
         },
         {
-          "module": "4.몽골클-업글-중국클"
+          "module": "03-main-mongolia"
         },
         {
-          "module": "5.중국클-태국클"
+          "module": "04-mongolia-upgrade-china"
         },
         {
-          "module": "6.태국클-파워업-캄보디아클(애매)"
+          "module": "05-china-thailand"
         },
         {
-          "module": "7.캄보디아클-필리핀클"
+          "module": "06-thailand-powerup-cambodia"
         },
         {
-          "module": "8.필리핀클-일본클-회색티켓수령"
+          "module": "07-cambodia-philippines"
         },
         {
-          "module": "9.회색티켓수령-메인"
+          "module": "08-philippines-japan-gray-ticket"
         },
         {
-          "module": "10.메인-레어티켓수령-메인"
+          "module": "09-gray-ticket-main"
         },
         {
-          "module": "11.메인-골드회원-메인"
+          "module": "10-main-rare-ticket"
         },
         {
-          "module": "12.메인-11뽑-뽑기화면"
+          "module": "11-main-gold-member"
         },
         {
-          "module": "13.뽑기화면-8티켓뽑-냉장고"
+          "module": "12-main-11pull-gacha"
+        },
+        {
+          "module": "13-gacha-8ticket-storage"
         },
         {
           "action": "screenshot",
@@ -190,7 +199,7 @@
           "delay_after_s": 0.5
         },
         {
-          "module": "14.냉장고-이어하기코드"
+          "module": "14-storage-transfer-code"
         },
         {
           "action": "screenshot",
@@ -198,7 +207,7 @@
           "delay_after_s": 0.5
         },
         {
-          "module": "15.이어하기코드-저장내역지우기-홈화면"
+          "module": "15-transfer-code-clear-home"
         }
       ],
       "connect_retries": 8,
