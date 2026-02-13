@@ -1,6 +1,7 @@
 {
   "log_dir": "logs",
   "iterations": 0,
+  "modules_dir": "modules",
   "instances": [
     {
       "name": "ld-1",
@@ -68,7 +69,7 @@
       "startup_wait_s": 5,
       "loop_delay_s": 2,
       "screenshot_every_loops": 0,
-      "taps": [
+      "steps": [
         {
           "action": "stop_app",
           "app_package": "com.example.game",
@@ -84,37 +85,17 @@
           "app_package": "com.example.game",
           "delay_after_s": 3.0
         },
-        {
-          "action": "tap",
-          "x": 1200,
-          "y": 680,
-          "wait_before_s": 0.0,
-          "delay_after_s": 1.2
-        },
+        {"module": "튜토리얼_스킵"},
         {
           "action": "screenshot",
-          "screenshot_name": "after_start",
-          "wait_before_s": 0.0,
+          "screenshot_name": "after_tutorial",
+          "delay_after_s": 0.5
+        },
+        {"module": "가챠_진행", "scale_x": 0.5, "scale_y": 0.5},
+        {
+          "action": "screenshot",
+          "screenshot_name": "after_gacha",
           "delay_after_s": 0.3
-        },
-        {
-          "action": "tap",
-          "x": 1110,
-          "y": 530,
-          "wait_before_s": 0.0,
-          "delay_after_s": 0.7
-        },
-        {
-          "action": "sleep",
-          "wait_before_s": 0.0,
-          "delay_after_s": 1.5
-        },
-        {
-          "action": "tap",
-          "x": 965,
-          "y": 615,
-          "wait_before_s": 0.0,
-          "delay_after_s": 1.0
         }
       ],
       "connect_retries": 8,

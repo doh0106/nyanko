@@ -1,0 +1,172 @@
+{
+    "operations": [
+        {
+            "timing": 1,
+            "operationId": "ImeClipboard",
+            "text": "https://jsbin.com/ruqaxuvaho/edit?output"
+        },
+        {
+            "timing": 2168,
+            "operationId": "AndroidHome"
+        },
+        {
+            "timing": 5926,
+            "operationId": "PutMultiTouch",
+            "points": [
+                {
+                    "id": 1,
+                    "x": 15945,
+                    "y": 1965,
+                    "state": 1
+                }
+            ]
+        },
+        {
+            "timing": 5933,
+            "operationId": "PutMultiTouch",
+            "points": []
+        },
+        {
+            "timing": 7159,
+            "operationId": "PutMultiTouch",
+            "points": [
+                {
+                    "id": 1,
+                    "x": 15945,
+                    "y": 1965,
+                    "state": 0
+                }
+            ]
+        },
+        {
+            "timing": 7165,
+            "operationId": "PutMultiTouch",
+            "points": []
+        },
+        {
+            "timing": 10877,
+            "operationId": "PutMultiTouch",
+            "points": [
+                {
+                    "id": 1,
+                    "x": 7365,
+                    "y": 7365,
+                    "state": 1
+                }
+            ]
+        },
+        {
+            "timing": 10877,
+            "operationId": "PutMultiTouch",
+            "points": []
+        },
+        {
+            "timing": 11207,
+            "operationId": "PutMultiTouch",
+            "points": [
+                {
+                    "id": 1,
+                    "x": 7365,
+                    "y": 7365,
+                    "state": 0
+                }
+            ]
+        },
+        {
+            "timing": 11209,
+            "operationId": "PutMultiTouch",
+            "points": []
+        },
+        {
+            "timing": 13968,
+            "operationId": "PutMultiTouch",
+            "points": [
+                {
+                    "id": 1,
+                    "x": 7065,
+                    "y": 3735,
+                    "state": 1
+                }
+            ]
+        },
+        {
+            "timing": 13973,
+            "operationId": "PutMultiTouch",
+            "points": []
+        },
+        {
+            "timing": 14088,
+            "operationId": "PutMultiTouch",
+            "points": [
+                {
+                    "id": 1,
+                    "x": 7065,
+                    "y": 3735,
+                    "state": 0
+                }
+            ]
+        },
+        {
+            "timing": 14093,
+            "operationId": "PutMultiTouch",
+            "points": []
+        },
+        {
+            "timing": 15601,
+            "operationId": "PutMultiTouch",
+            "points": [
+                {
+                    "id": 1,
+                    "x": 14775,
+                    "y": 6510,
+                    "state": 1
+                }
+            ]
+        },
+        {
+            "timing": 15606,
+            "operationId": "PutMultiTouch",
+            "points": []
+        },
+        {
+            "timing": 15730,
+            "operationId": "PutMultiTouch",
+            "points": [
+                {
+                    "id": 1,
+                    "x": 14850,
+                    "y": 6510,
+                    "state": 0
+                }
+            ]
+        },
+        {
+            "timing": 15733,
+            "operationId": "PutMultiTouch",
+            "points": []
+        },
+        {
+            "timing": 21379,
+            "operationId": "AndroidHome"
+        }
+    ],
+    "recordInfo": {
+        "loopType": 0,
+        "loopTimes": 1,
+        "circleDuration": 24880,
+        "loopInterval": 0,
+        "loopDuration": 0,
+        "accelerateTimes": 1,
+        "accelerateTimesEx": 1,
+        "recordName": "",
+        "createTime": "2026-02-14 07:24:28",
+        "playOnBoot": false,
+        "rebootTiming": 0,
+        "closeTiming": 0,
+        "resolutionWidth": 1280,
+        "resolutionHeight": 720,
+        "randomTouch": false,
+        "shortkey": 0,
+        "modifyKey": 0
+    }
+}
