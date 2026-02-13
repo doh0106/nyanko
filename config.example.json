@@ -1,0 +1,36 @@
+{
+  "log_dir": "logs",
+  "iterations": 0,
+  "instances": [
+    {
+      "name": "ld-1",
+      "adb_serial": "127.0.0.1:5555",
+      "enabled": true,
+      "startup_wait_s": 3,
+      "loop_delay_s": 2,
+      "screenshot_every_loops": 0,
+      "taps": [
+        { "action": "tap", "x": 1200, "y": 680, "wait_before_s": 0.0, "delay_after_s": 1.2 },
+        { "action": "screenshot", "screenshot_name": "after_start", "wait_before_s": 0.0, "delay_after_s": 0.3 },
+        { "action": "tap", "x": 1110, "y": 530, "wait_before_s": 0.0, "delay_after_s": 0.7 },
+        { "action": "sleep", "wait_before_s": 0.0, "delay_after_s": 1.5 },
+        { "action": "tap", "x": 965, "y": 615, "wait_before_s": 0.0, "delay_after_s": 1.0 }
+      ]
+    },
+    {
+      "name": "ld-2",
+      "adb_serial": "127.0.0.1:5557",
+      "enabled": true,
+      "startup_wait_s": 5,
+      "loop_delay_s": 2,
+      "screenshot_every_loops": 0,
+      "taps": [
+        { "action": "tap", "x": 1200, "y": 680, "wait_before_s": 0.0, "delay_after_s": 1.2 },
+        { "action": "screenshot", "screenshot_name": "after_start", "wait_before_s": 0.0, "delay_after_s": 0.3 },
+        { "action": "tap", "x": 1110, "y": 530, "wait_before_s": 0.0, "delay_after_s": 0.7 },
+        { "action": "sleep", "wait_before_s": 0.0, "delay_after_s": 1.5 },
+        { "action": "tap", "x": 965, "y": 615, "wait_before_s": 0.0, "delay_after_s": 1.0 }
+      ]
+    }
+  ]
+}
