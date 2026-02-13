@@ -222,6 +222,16 @@ run.bat
 
 ---
 
+### 자주 보는 에러: `winget은(는) 예상되지 않았습니다.`
+이건 보통 `setup_windows.bat` 안의 안내문이 CMD에서 잘못 파싱될 때 생깁니다.
+최신 파일로 교체 후 다시 실행하세요. (이번 버전에서 수정됨)
+
+그리고 이 메시지는 **ADB가 PATH에 없을 때** 같이 뜰 수 있으니 아래도 같이 확인:
+```bat
+where adb
+adb version
+```
+
 ## 문제 생기면 먼저 확인
 1. `adb devices`에 `device` 상태로 보이는지
 2. `config.json`의 `adb_serial`이 맞는지
