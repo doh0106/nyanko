@@ -37,6 +37,8 @@ class InstanceConfig:
     loop_delay_s: float
     taps: list[TapAction]
     screenshot_every_loops: int
+    connect_retries: int
+    connect_retry_delay_s: float
 
 
 @dataclass
@@ -54,10 +56,33 @@ def adb(serial: str, args: list[str], *, timeout: float = 20, text: bool = True)
     return run_cmd(["adb", "-s", serial] + args, timeout=timeout, text=text)
 
 
-def ensure_device(serial: str) -> None:
-    result = adb(serial, ["get-state"], timeout=10)
-    if result.returncode != 0 or "device" not in result.stdout:
-        raise RuntimeError(f"{serial}: ADB not ready. stdout={result.stdout!r} stderr={result.stderr!r}")
+def adb_connect(serial: str) -> subprocess.CompletedProcess:
+    return run_cmd(["adb", "connect", serial], timeout=12)
+
+
+def ensure_device(serial: str, retries: int = 3, retry_delay_s: float = 2.0) -> None:
+    attempts = max(1, retries)
+    last_stdout = ""
+    last_stderr = ""
+
+    for i in range(1, attempts + 1):
+        # LDPlayer 로컬 TCP serial(127.0.0.1:5555 등)은 connect가 필요한 경우가 많음
+        adb_connect(serial)
+        result = adb(serial, ["get-state"], timeout=10)
+        last_stdout = result.stdout
+        last_stderr = result.stderr
+        if result.returncode == 0 and "device" in result.stdout:
+            return
+
+        if i < attempts:
+            print(f"[{serial}] ADB not ready, retry {i}/{attempts} ...")
+            time.sleep(retry_delay_s)
+
+    raise RuntimeError(
+        f"{serial}: ADB not ready after {attempts} attempts. "
+        f"stdout={last_stdout!r} stderr={last_stderr!r}. "
+        f"Check adb devices / LD ADB setting / serial(port)."
+    )
 
 
 def tap(serial: str, x: int, y: int) -> None:
@@ -103,6 +128,8 @@ def load_config(path: Path) -> AppConfig:
                 loop_delay_s=float(inst.get("loop_delay_s", 2)),
                 taps=taps,
                 screenshot_every_loops=int(inst.get("screenshot_every_loops", 0)),
+                connect_retries=int(inst.get("connect_retries", 5)),
+                connect_retry_delay_s=float(inst.get("connect_retry_delay_s", 2.0)),
             )
         )
 
@@ -114,55 +141,58 @@ def load_config(path: Path) -> AppConfig:
 
 
 def worker(config: AppConfig, inst: InstanceConfig) -> None:
-    if not inst.enabled:
-        print(f"[{inst.name}] disabled -> skip")
-        return
+    try:
+        if not inst.enabled:
+            print(f"[{inst.name}] disabled -> skip")
+            return
 
-    print(f"[{inst.name}] waiting {inst.startup_wait_s}s before start")
-    time.sleep(inst.startup_wait_s)
+        print(f"[{inst.name}] waiting {inst.startup_wait_s}s before start")
+        time.sleep(inst.startup_wait_s)
 
-    ensure_device(inst.adb_serial)
-    print(f"[{inst.name}] connected: {inst.adb_serial}")
+        ensure_device(inst.adb_serial, retries=inst.connect_retries, retry_delay_s=inst.connect_retry_delay_s)
+        print(f"[{inst.name}] connected: {inst.adb_serial}")
 
-    loops = 0
-    while True:
-        loops += 1
-        loop_started = time.time()
-        print(f"[{inst.name}] loop {loops} start")
+        loops = 0
+        while True:
+            loops += 1
+            loop_started = time.time()
+            print(f"[{inst.name}] loop {loops} start")
 
-        for i, action in enumerate(inst.taps, start=1):
-            if action.wait_before_s > 0:
-                time.sleep(action.wait_before_s)
+            for i, action in enumerate(inst.taps, start=1):
+                if action.wait_before_s > 0:
+                    time.sleep(action.wait_before_s)
 
-            elapsed = time.time() - loop_started
-            if action.action == "tap":
-                tap(inst.adb_serial, action.x, action.y)
-                print(f"[{inst.name}] tap#{i} ({action.x}, {action.y}) t+{elapsed:.2f}s")
-            elif action.action == "screenshot":
+                elapsed = time.time() - loop_started
+                if action.action == "tap":
+                    tap(inst.adb_serial, action.x, action.y)
+                    print(f"[{inst.name}] tap#{i} ({action.x}, {action.y}) t+{elapsed:.2f}s")
+                elif action.action == "screenshot":
+                    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    label = action.screenshot_name or f"step{i}"
+                    shot_path = config.log_dir / f"{inst.name}_{ts}_loop{loops}_{label}.png"
+                    screenshot(inst.adb_serial, shot_path)
+                    print(f"[{inst.name}] screenshot#{i} saved: {shot_path} t+{elapsed:.2f}s")
+                elif action.action == "sleep":
+                    print(f"[{inst.name}] sleep#{i} {action.delay_after_s:.2f}s t+{elapsed:.2f}s")
+                else:
+                    raise RuntimeError(f"[{inst.name}] unsupported action: {action.action}")
+
+                if action.delay_after_s > 0:
+                    time.sleep(action.delay_after_s)
+
+            if inst.screenshot_every_loops > 0 and loops % inst.screenshot_every_loops == 0:
                 ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-                label = action.screenshot_name or f"step{i}"
-                shot_path = config.log_dir / f"{inst.name}_{ts}_loop{loops}_{label}.png"
+                shot_path = config.log_dir / f"{inst.name}_{ts}_loop{loops}.png"
                 screenshot(inst.adb_serial, shot_path)
-                print(f"[{inst.name}] screenshot#{i} saved: {shot_path} t+{elapsed:.2f}s")
-            elif action.action == "sleep":
-                print(f"[{inst.name}] sleep#{i} {action.delay_after_s:.2f}s t+{elapsed:.2f}s")
-            else:
-                raise RuntimeError(f"[{inst.name}] unsupported action: {action.action}")
+                print(f"[{inst.name}] screenshot saved: {shot_path}")
 
-            if action.delay_after_s > 0:
-                time.sleep(action.delay_after_s)
+            if config.iterations > 0 and loops >= config.iterations:
+                print(f"[{inst.name}] reached iterations={config.iterations} -> stop")
+                break
 
-        if inst.screenshot_every_loops > 0 and loops % inst.screenshot_every_loops == 0:
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-            shot_path = config.log_dir / f"{inst.name}_{ts}_loop{loops}.png"
-            screenshot(inst.adb_serial, shot_path)
-            print(f"[{inst.name}] screenshot saved: {shot_path}")
-
-        if config.iterations > 0 and loops >= config.iterations:
-            print(f"[{inst.name}] reached iterations={config.iterations} -> stop")
-            break
-
-        time.sleep(inst.loop_delay_s)
+            time.sleep(inst.loop_delay_s)
+    except Exception as exc:
+        print(f"[{inst.name}] ERROR: {exc}")
 
 
 def main() -> int:
