@@ -11,6 +11,21 @@
       "screenshot_every_loops": 0,
       "taps": [
         {
+          "action": "stop_app",
+          "app_package": "com.example.game",
+          "delay_after_s": 0.3
+        },
+        {
+          "action": "clear_data",
+          "app_package": "com.example.game",
+          "delay_after_s": 0.8
+        },
+        {
+          "action": "start_app",
+          "app_package": "com.example.game",
+          "delay_after_s": 3.0
+        },
+        {
           "action": "tap",
           "x": 1200,
           "y": 680,
@@ -54,6 +69,21 @@
       "loop_delay_s": 2,
       "screenshot_every_loops": 0,
       "taps": [
+        {
+          "action": "stop_app",
+          "app_package": "com.example.game",
+          "delay_after_s": 0.3
+        },
+        {
+          "action": "clear_data",
+          "app_package": "com.example.game",
+          "delay_after_s": 0.8
+        },
+        {
+          "action": "start_app",
+          "app_package": "com.example.game",
+          "delay_after_s": 3.0
+        },
         {
           "action": "tap",
           "x": 1200,

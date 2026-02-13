@@ -35,6 +35,18 @@
 - 단순 반복 + 항상 같은 창 1개: 윈도우 클릭 매크로도 충분히 가능
 - 다중 인스턴스 + 창 전환/포커스 영향 줄이고 싶음: **ADB 방식이 더 안정적**
 
+### 6) 데이터 캐시 삭제하면 LD 매크로가 꺼지는데, 매크로 On/Off도 조작 가능?
+핵심만 말하면:
+- **ADB만으로는 LDPlayer "호스트 UI"의 매크로 버튼을 직접 누르기 어렵습니다.**
+- 대신 더 안정적인 방법은, 매크로 의존을 줄이고 이 스크립트에서 앱 제어를 같이 하는 것입니다.
+
+이번 버전에서 아래 액션을 추가했습니다.
+- `action: "stop_app"` + `app_package`
+- `action: "clear_data"` + `app_package`
+- `action: "start_app"` + `app_package`
+
+즉, 게임 데이터 초기화/앱 재실행을 LD 매크로가 아니라 ADB 액션으로 처리할 수 있습니다.
+
 ---
 
 ## 파일 구성
@@ -192,6 +204,18 @@ run.bat
 > `run.bat`를 더블클릭으로 실행했을 때 창이 바로 닫히면, CMD를 직접 열어 실행하면 종료 제어가 더 쉽습니다.
 
 ## 설정(config.json)에서 꼭 알아야 할 것
+앱 제어 액션(새로 추가):
+- `action: "stop_app"` + `app_package`: 앱 강제 종료
+- `action: "clear_data"` + `app_package`: 앱 데이터 초기화(`pm clear`)
+- `action: "start_app"` + `app_package`: 앱 실행(`monkey -p`)
+
+예시:
+```json
+{ "action": "stop_app", "app_package": "com.example.game", "delay_after_s": 0.3 },
+{ "action": "clear_data", "app_package": "com.example.game", "delay_after_s": 0.8 },
+{ "action": "start_app", "app_package": "com.example.game", "delay_after_s": 3.0 }
+```
+
 - `iterations`: `0`이면 무한 반복
 - `instances[].adb_serial`: 각 LD 인스턴스 ADB 주소 (예: `127.0.0.1:5555`)
 - `instances[].taps[]`: 동작 순서

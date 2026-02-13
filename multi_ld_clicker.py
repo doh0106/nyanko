@@ -20,12 +20,13 @@ from typing import Literal
 
 @dataclass
 class TapAction:
-    action: Literal["tap", "screenshot", "sleep"] = "tap"
+    action: Literal["tap", "screenshot", "sleep", "clear_data", "start_app", "stop_app"] = "tap"
     x: int = 0
     y: int = 0
     wait_before_s: float = 0.0
     delay_after_s: float = 0.5
     screenshot_name: str = ""
+    app_package: str = ""
 
 
 @dataclass
@@ -66,7 +67,6 @@ def ensure_device(serial: str, retries: int = 3, retry_delay_s: float = 2.0) -> 
     last_stderr = ""
 
     for i in range(1, attempts + 1):
-        # LDPlayer 로컬 TCP serial(127.0.0.1:5555 등)은 connect가 필요한 경우가 많음
         adb_connect(serial)
         result = adb(serial, ["get-state"], timeout=10)
         last_stdout = result.stdout
@@ -89,6 +89,24 @@ def tap(serial: str, x: int, y: int) -> None:
     result = adb(serial, ["shell", "input", "tap", str(x), str(y)], timeout=10)
     if result.returncode != 0:
         raise RuntimeError(f"{serial}: tap ({x},{y}) failed: {result.stderr.strip()}")
+
+
+def clear_data(serial: str, package: str) -> None:
+    result = adb(serial, ["shell", "pm", "clear", package], timeout=20)
+    if result.returncode != 0 or "Success" not in result.stdout:
+        raise RuntimeError(f"{serial}: clear_data failed for {package}: {result.stdout.strip()} {result.stderr.strip()}")
+
+
+def start_app(serial: str, package: str) -> None:
+    result = adb(serial, ["shell", "monkey", "-p", package, "-c", "android.intent.category.LAUNCHER", "1"], timeout=20)
+    if result.returncode != 0:
+        raise RuntimeError(f"{serial}: start_app failed for {package}: {result.stderr.strip()}")
+
+
+def stop_app(serial: str, package: str) -> None:
+    result = adb(serial, ["shell", "am", "force-stop", package], timeout=15)
+    if result.returncode != 0:
+        raise RuntimeError(f"{serial}: stop_app failed for {package}: {result.stderr.strip()}")
 
 
 def screenshot(serial: str, output_path: Path) -> None:
@@ -116,6 +134,7 @@ def load_config(path: Path) -> AppConfig:
                 wait_before_s=float(t.get("wait_before_s", 0.0)),
                 delay_after_s=float(t.get("delay_after_s", 0.5)),
                 screenshot_name=str(t.get("screenshot_name", "")),
+                app_package=str(t.get("app_package", "")),
             )
             for t in inst["taps"]
         ]
@@ -141,10 +160,6 @@ def load_config(path: Path) -> AppConfig:
 
 
 def wait_or_stop(stop_event: threading.Event, seconds: float) -> bool:
-    """Sleep up to seconds, but return early when stop_event is set.
-
-    Returns True if stopped early, otherwise False.
-    """
     if seconds <= 0:
         return stop_event.is_set()
     return stop_event.wait(timeout=seconds)
@@ -186,6 +201,21 @@ def worker(config: AppConfig, inst: InstanceConfig, stop_event: threading.Event)
                     print(f"[{inst.name}] screenshot#{i} saved: {shot_path} t+{elapsed:.2f}s")
                 elif action.action == "sleep":
                     print(f"[{inst.name}] sleep#{i} {action.delay_after_s:.2f}s t+{elapsed:.2f}s")
+                elif action.action == "clear_data":
+                    if not action.app_package:
+                        raise RuntimeError(f"[{inst.name}] clear_data needs app_package")
+                    clear_data(inst.adb_serial, action.app_package)
+                    print(f"[{inst.name}] clear_data#{i} {action.app_package} t+{elapsed:.2f}s")
+                elif action.action == "start_app":
+                    if not action.app_package:
+                        raise RuntimeError(f"[{inst.name}] start_app needs app_package")
+                    start_app(inst.adb_serial, action.app_package)
+                    print(f"[{inst.name}] start_app#{i} {action.app_package} t+{elapsed:.2f}s")
+                elif action.action == "stop_app":
+                    if not action.app_package:
+                        raise RuntimeError(f"[{inst.name}] stop_app needs app_package")
+                    stop_app(inst.adb_serial, action.app_package)
+                    print(f"[{inst.name}] stop_app#{i} {action.app_package} t+{elapsed:.2f}s")
                 else:
                     raise RuntimeError(f"[{inst.name}] unsupported action: {action.action}")
 
