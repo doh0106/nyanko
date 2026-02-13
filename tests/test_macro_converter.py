@@ -6,7 +6,9 @@ from pathlib import Path
 import pytest
 
 from macro_converter import (
+    LD_COORD_DIVISOR,
     _extract_operations,
+    _needs_ld_scaling,
     _parse_operations,
     convert_macro_file,
     convert_macro_folder,
@@ -60,6 +62,30 @@ class TestExtractOperations:
         ops = _extract_operations(raw)
         assert len(ops) == 1
         assert ops[0]["operationId"] == "X"
+
+
+class TestNeedsLdScaling:
+    def test_coords_exceed_resolution(self):
+        ops = [
+            {
+                "operationId": "PutMultiTouch",
+                "points": [{"x": 14400, "y": 8100}],
+            }
+        ]
+        assert _needs_ld_scaling(ops, 1280, 720) is True
+
+    def test_coords_within_resolution(self):
+        ops = [
+            {
+                "operationId": "PutMultiTouch",
+                "points": [{"x": 640, "y": 360}],
+            }
+        ]
+        assert _needs_ld_scaling(ops, 1280, 720) is False
+
+    def test_no_touch_ops(self):
+        ops = [{"operationId": "ImeClipboard", "text": "hi"}]
+        assert _needs_ld_scaling(ops, 1280, 720) is False
 
 
 class TestParseOperations:
@@ -172,7 +198,8 @@ class TestParseOperations:
 
 
 class TestConvertMacroFile:
-    def test_flat_file(self, tmp_path: Path):
+    def test_flat_file_no_record_info(self, tmp_path: Path):
+        """Without recordInfo, no LD scaling is applied."""
         macro = {
             "operations": [
                 {
@@ -193,7 +220,47 @@ class TestConvertMacroFile:
         result = convert_macro_file(path)
         assert len(result) == 2
         assert result[0]["action"] == "tap"
+        assert result[0]["x"] == 50
+        assert result[0]["y"] == 60
         assert result[1]["action"] == "clipboard"
+
+    def test_ld_record_with_high_coords_gets_scaled(self, tmp_path: Path):
+        """LD-style coordinates exceeding resolution get divided by coord_divisor."""
+        macro = {
+            "recordInfo": {"resolutionWidth": 1280, "resolutionHeight": 720},
+            "operations": [
+                {
+                    "operationId": "PutMultiTouch",
+                    "timing": 0,
+                    "points": [{"state": 1, "x": 14400, "y": 8100}],
+                },
+            ],
+        }
+        path = tmp_path / "macro.record"
+        path.write_text(json.dumps(macro), encoding="utf-8")
+
+        result = convert_macro_file(path, coord_divisor=22.5)
+        assert result[0]["x"] == 640  # 14400 / 22.5
+        assert result[0]["y"] == 360  # 8100 / 22.5
+
+    def test_ld_record_with_low_coords_no_scaling(self, tmp_path: Path):
+        """Coordinates within resolution bounds are NOT scaled."""
+        macro = {
+            "recordInfo": {"resolutionWidth": 1280, "resolutionHeight": 720},
+            "operations": [
+                {
+                    "operationId": "PutMultiTouch",
+                    "timing": 0,
+                    "points": [{"state": 1, "x": 640, "y": 360}],
+                },
+            ],
+        }
+        path = tmp_path / "macro.record"
+        path.write_text(json.dumps(macro), encoding="utf-8")
+
+        result = convert_macro_file(path, coord_divisor=22.5)
+        assert result[0]["x"] == 640
+        assert result[0]["y"] == 360
 
     def test_merged_records_file(self, tmp_path: Path):
         macro = {
@@ -227,6 +294,24 @@ class TestConvertMacroFile:
         assert len(result) == 2
         assert result[0]["wait_before_s"] == 0.1
         assert result[1]["wait_before_s"] == 1.9
+
+    def test_custom_coord_divisor(self, tmp_path: Path):
+        macro = {
+            "recordInfo": {"resolutionWidth": 1280, "resolutionHeight": 720},
+            "operations": [
+                {
+                    "operationId": "PutMultiTouch",
+                    "timing": 0,
+                    "points": [{"state": 1, "x": 6400, "y": 3600}],
+                },
+            ],
+        }
+        path = tmp_path / "macro.record"
+        path.write_text(json.dumps(macro), encoding="utf-8")
+
+        result = convert_macro_file(path, coord_divisor=10.0)
+        assert result[0]["x"] == 640  # 6400 / 10
+        assert result[0]["y"] == 360  # 3600 / 10
 
 
 class TestConvertMacroFolder:

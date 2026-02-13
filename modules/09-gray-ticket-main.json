@@ -1,120 +1,120 @@
 [
   {
     "action": "tap",
-    "x": 341,
-    "y": 608,
+    "x": 190,
+    "y": 339,
     "wait_before_s": 1.507,
     "delay_after_s": 0.2
   },
   {
     "action": "tap",
-    "x": 273,
-    "y": 436,
+    "x": 152,
+    "y": 243,
     "wait_before_s": 2.359,
     "delay_after_s": 0.2
   },
   {
     "action": "tap",
-    "x": 350,
-    "y": 600,
+    "x": 195,
+    "y": 334,
     "wait_before_s": 5.966,
     "delay_after_s": 0.2
   },
   {
     "action": "tap",
-    "x": 250,
-    "y": 443,
+    "x": 139,
+    "y": 247,
     "wait_before_s": 2.266,
     "delay_after_s": 0.2
   },
   {
     "action": "tap",
-    "x": 344,
-    "y": 597,
+    "x": 191,
+    "y": 333,
     "wait_before_s": 6.143,
     "delay_after_s": 0.2
   },
   {
     "action": "tap",
-    "x": 273,
-    "y": 433,
+    "x": 152,
+    "y": 241,
     "wait_before_s": 2.458,
     "delay_after_s": 0.2
   },
   {
     "action": "tap",
-    "x": 365,
-    "y": 558,
+    "x": 203,
+    "y": 311,
     "wait_before_s": 5.96,
     "delay_after_s": 0.2
   },
   {
     "action": "tap",
-    "x": 269,
-    "y": 429,
+    "x": 150,
+    "y": 239,
     "wait_before_s": 2.424,
     "delay_after_s": 0.2
   },
   {
     "action": "tap",
-    "x": 152,
-    "y": 41,
+    "x": 85,
+    "y": 23,
     "wait_before_s": 3.931,
     "delay_after_s": 0.2
   },
   {
     "action": "tap",
-    "x": 152,
-    "y": 39,
+    "x": 85,
+    "y": 22,
     "wait_before_s": 1.643,
     "delay_after_s": 0.2
   },
   {
     "action": "tap",
-    "x": 152,
-    "y": 39,
+    "x": 85,
+    "y": 22,
     "wait_before_s": 1.397,
     "delay_after_s": 0.2
   },
   {
     "action": "tap",
-    "x": 152,
-    "y": 39,
+    "x": 85,
+    "y": 22,
     "wait_before_s": 1.735,
     "delay_after_s": 0.2
   },
   {
     "action": "tap",
-    "x": 554,
-    "y": 540,
+    "x": 309,
+    "y": 301,
     "wait_before_s": 1.91,
     "delay_after_s": 0.2
   },
   {
     "action": "tap",
-    "x": 554,
-    "y": 547,
+    "x": 309,
+    "y": 305,
     "wait_before_s": 1.511,
     "delay_after_s": 0.2
   },
   {
     "action": "tap",
-    "x": 554,
-    "y": 548,
+    "x": 309,
+    "y": 305,
     "wait_before_s": 1.457,
     "delay_after_s": 0.2
   },
   {
     "action": "tap",
-    "x": 554,
-    "y": 553,
+    "x": 309,
+    "y": 308,
     "wait_before_s": 1.731,
     "delay_after_s": 0.2
   },
   {
     "action": "tap",
-    "x": 1280,
-    "y": 688,
+    "x": 713,
+    "y": 383,
     "wait_before_s": 1.962,
     "delay_after_s": 0.2
   }

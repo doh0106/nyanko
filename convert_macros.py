@@ -21,7 +21,7 @@ if sys.platform == "win32":
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 from pathlib import Path
 
-from macro_converter import convert_macro_folder
+from macro_converter import LD_COORD_DIVISOR, convert_macro_folder
 
 
 def main() -> int:
@@ -31,6 +31,8 @@ def main() -> int:
     parser.add_argument("--scale-x", type=float, default=1.0, help="Scale x coordinates")
     parser.add_argument("--scale-y", type=float, default=1.0, help="Scale y coordinates")
     parser.add_argument("--default-delay", type=float, default=0.2, help="Fallback delay between taps")
+    parser.add_argument("--coord-divisor", type=float, default=LD_COORD_DIVISOR,
+                        help=f"LD internal coord divisor (default {LD_COORD_DIVISOR} for 320dpi)")
     args = parser.parse_args()
 
     input_dir = Path(args.input_dir)
@@ -44,6 +46,7 @@ def main() -> int:
         scale_x=args.scale_x,
         scale_y=args.scale_y,
         default_delay_s=args.default_delay,
+        coord_divisor=args.coord_divisor,
     )
 
     if not created:

@@ -10,6 +10,10 @@ import json
 from pathlib import Path
 
 _DEFAULT_DELAY_S = 0.2
+# LD Player stores touch coords as pixel * divisor.  For 320 DPI the
+# divisor is 22.5 (verified from edge-tap recordings).  Override via
+# --coord-divisor if your emulator uses a different DPI.
+LD_COORD_DIVISOR = 22.5
 
 
 def _clamp_nonnegative(v: float) -> float:
@@ -32,29 +36,15 @@ def _extract_operations(raw: dict) -> list[dict]:
     return ops
 
 
-def _detect_ld_coord_divisor(ops: list[dict], res_w: int, res_h: int) -> float:
-    """Detect LD internal coordinate divisor from max observed coordinates.
-
-    LD Player stores touch coordinates as pixel * divisor, where divisor
-    is uniform for both axes (~22.5 for 320dpi). We compute it from the
-    larger axis (more data points = more likely to have near-edge taps).
-    """
-    max_x = 0.0
-    max_y = 0.0
+def _needs_ld_scaling(ops: list[dict], res_w: int, res_h: int) -> bool:
+    """Check whether raw coordinates exceed display resolution (LD internal space)."""
     for op in ops:
         if op.get("operationId") != "PutMultiTouch":
             continue
         for p in op.get("points") or []:
-            max_x = max(max_x, float(p.get("x", 0)))
-            max_y = max(max_y, float(p.get("y", 0)))
-
-    if max_x == 0 and max_y == 0:
-        return 1.0
-
-    # Use the axis with wider resolution for a more reliable estimate
-    ratio_x = max_x / res_w if res_w > 0 else 0
-    ratio_y = max_y / res_h if res_h > 0 else 0
-    return max(ratio_x, ratio_y)
+            if float(p.get("x", 0)) > res_w or float(p.get("y", 0)) > res_h:
+                return True
+    return False
 
 
 def _parse_operations(
@@ -116,26 +106,24 @@ def convert_macro_file(
     scale_x: float = 1.0,
     scale_y: float = 1.0,
     default_delay_s: float = _DEFAULT_DELAY_S,
+    coord_divisor: float = LD_COORD_DIVISOR,
 ) -> list[dict]:
     """Convert a single LD macro file to a list of tap actions.
 
-    Auto-detects LD internal coordinate space from recordInfo and scales
-    to display pixel coordinates. Additional scale_x/scale_y are applied
-    on top of the auto-detected scaling.
+    LD Player stores touch coordinates in an internal space (pixel * divisor).
+    When recordInfo has resolution data and raw coordinates exceed it, we
+    divide by coord_divisor (default 22.5 for 320 DPI) to get pixel coords.
     """
     raw = json.loads(path.read_text(encoding="utf-8"))
     ops = _extract_operations(raw)
 
-    # LD records store coordinates as pixel * divisor (uniform for both axes)
     info = raw.get("recordInfo", {})
     res_w = int(info.get("resolutionWidth", 0))
     res_h = int(info.get("resolutionHeight", 0))
 
-    if res_w > 0 and res_h > 0:
-        divisor = _detect_ld_coord_divisor(ops, res_w, res_h)
-        if divisor > 1:
-            scale_x /= divisor
-            scale_y /= divisor
+    if res_w > 0 and res_h > 0 and _needs_ld_scaling(ops, res_w, res_h):
+        scale_x /= coord_divisor
+        scale_y /= coord_divisor
 
     return _parse_operations(ops, scale_x, scale_y, default_delay_s)
 
@@ -146,8 +134,9 @@ def convert_macro_folder(
     scale_x: float = 1.0,
     scale_y: float = 1.0,
     default_delay_s: float = _DEFAULT_DELAY_S,
+    coord_divisor: float = LD_COORD_DIVISOR,
 ) -> list[Path]:
-    """Batch-convert all .txt/.json macro files in input_dir to output_dir.
+    """Batch-convert all .txt/.json/.record macro files in input_dir to output_dir.
 
     Returns list of created output paths.
     """
@@ -161,7 +150,7 @@ def convert_macro_folder(
     )
 
     for src in sources:
-        taps = convert_macro_file(src, scale_x, scale_y, default_delay_s)
+        taps = convert_macro_file(src, scale_x, scale_y, default_delay_s, coord_divisor)
         out_path = output_dir / f"{src.stem}.json"
         out_path.write_text(
             json.dumps(taps, ensure_ascii=False, indent=2) + "\n",
