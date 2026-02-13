@@ -32,6 +32,22 @@ def _extract_operations(raw: dict) -> list[dict]:
     return ops
 
 
+def _compute_coord_scale(ops: list[dict], target_w: int, target_h: int) -> tuple[float, float]:
+    """Compute scale factors from LD internal coordinates to display pixels."""
+    max_x = 0.0
+    max_y = 0.0
+    for op in ops:
+        if op.get("operationId") != "PutMultiTouch":
+            continue
+        for p in op.get("points") or []:
+            max_x = max(max_x, float(p.get("x", 0)))
+            max_y = max(max_y, float(p.get("y", 0)))
+
+    if max_x == 0 or max_y == 0:
+        return (1.0, 1.0)
+    return (target_w / max_x, target_h / max_y)
+
+
 def _parse_operations(
     ops: list[dict],
     scale_x: float = 1.0,
@@ -92,9 +108,25 @@ def convert_macro_file(
     scale_y: float = 1.0,
     default_delay_s: float = _DEFAULT_DELAY_S,
 ) -> list[dict]:
-    """Convert a single LD macro file to a list of tap actions."""
+    """Convert a single LD macro file to a list of tap actions.
+
+    Auto-detects LD internal coordinate space from recordInfo and scales
+    to display pixel coordinates. Additional scale_x/scale_y are applied
+    on top of the auto-detected scaling.
+    """
     raw = json.loads(path.read_text(encoding="utf-8"))
     ops = _extract_operations(raw)
+
+    # LD records store coordinates in an internal space larger than display pixels
+    info = raw.get("recordInfo", {})
+    res_w = int(info.get("resolutionWidth", 0))
+    res_h = int(info.get("resolutionHeight", 0))
+
+    if res_w > 0 and res_h > 0:
+        auto_sx, auto_sy = _compute_coord_scale(ops, res_w, res_h)
+        scale_x *= auto_sx
+        scale_y *= auto_sy
+
     return _parse_operations(ops, scale_x, scale_y, default_delay_s)
 
 

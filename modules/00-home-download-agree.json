@@ -1,22 +1,22 @@
 [
   {
     "action": "tap",
-    "x": 15945,
-    "y": 1935,
+    "x": 720,
+    "y": 250,
     "wait_before_s": 1.665,
     "delay_after_s": 0.2
   },
   {
     "action": "tap",
-    "x": 6915,
-    "y": 7095,
+    "x": 312,
+    "y": 916,
     "wait_before_s": 11.268,
     "delay_after_s": 0.2
   },
   {
     "action": "tap",
-    "x": 1500,
-    "y": 9915,
+    "x": 68,
+    "y": 1280,
     "wait_before_s": 57.426,
     "delay_after_s": 0.2
   }

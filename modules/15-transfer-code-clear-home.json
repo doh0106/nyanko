@@ -7,29 +7,29 @@
   },
   {
     "action": "tap",
-    "x": 15945,
-    "y": 1965,
+    "x": 1280,
+    "y": 192,
     "wait_before_s": 5.925,
     "delay_after_s": 0.2
   },
   {
     "action": "tap",
-    "x": 7365,
-    "y": 7365,
+    "x": 591,
+    "y": 720,
     "wait_before_s": 4.951,
     "delay_after_s": 0.2
   },
   {
     "action": "tap",
-    "x": 7065,
-    "y": 3735,
+    "x": 567,
+    "y": 365,
     "wait_before_s": 3.091,
     "delay_after_s": 0.2
   },
   {
     "action": "tap",
-    "x": 14775,
-    "y": 6510,
+    "x": 1186,
+    "y": 636,
     "wait_before_s": 1.633,
     "delay_after_s": 0.2
   }
