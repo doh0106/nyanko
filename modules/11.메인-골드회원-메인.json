@@ -1,0 +1,85 @@
+[
+  {
+    "action": "clipboard",
+    "text": "https://jsbin.com/ruqaxuvaho/edit?output",
+    "wait_before_s": 0.001,
+    "delay_after_s": 0.2
+  },
+  {
+    "action": "tap",
+    "x": 7875,
+    "y": 1080,
+    "wait_before_s": 1.596,
+    "delay_after_s": 0.2
+  },
+  {
+    "action": "tap",
+    "x": 8970,
+    "y": 6495,
+    "wait_before_s": 1.573,
+    "delay_after_s": 0.2
+  },
+  {
+    "action": "tap",
+    "x": 16920,
+    "y": 9615,
+    "wait_before_s": 3.311,
+    "delay_after_s": 0.2
+  },
+  {
+    "action": "tap",
+    "x": 1395,
+    "y": 5445,
+    "wait_before_s": 1.659,
+    "delay_after_s": 0.2
+  },
+  {
+    "action": "tap",
+    "x": 1350,
+    "y": 5370,
+    "wait_before_s": 1.983,
+    "delay_after_s": 0.2
+  },
+  {
+    "action": "tap",
+    "x": 5880,
+    "y": 7125,
+    "wait_before_s": 1.787,
+    "delay_after_s": 0.2
+  },
+  {
+    "action": "tap",
+    "x": 8385,
+    "y": 6569,
+    "wait_before_s": 1.796,
+    "delay_after_s": 0.2
+  },
+  {
+    "action": "tap",
+    "x": 1770,
+    "y": 570,
+    "wait_before_s": 1.419,
+    "delay_after_s": 0.2
+  },
+  {
+    "action": "tap",
+    "x": 1800,
+    "y": 570,
+    "wait_before_s": 0.093,
+    "delay_after_s": 0.2
+  },
+  {
+    "action": "tap",
+    "x": 4440,
+    "y": 7065,
+    "wait_before_s": 6.238,
+    "delay_after_s": 0.2
+  },
+  {
+    "action": "tap",
+    "x": 3555,
+    "y": 5490,
+    "wait_before_s": 1.523,
+    "delay_after_s": 0.2
+  }
+]
