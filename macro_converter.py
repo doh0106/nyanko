@@ -125,7 +125,13 @@ def convert_macro_file(
         scale_x /= coord_divisor
         scale_y /= coord_divisor
 
-    return _parse_operations(ops, scale_x, scale_y, default_delay_s)
+    taps = _parse_operations(ops, scale_x, scale_y, default_delay_s)
+
+    # Prepend orientation metadata so runtime can rotate if needed
+    if res_w > 0 and res_h > 0:
+        taps.insert(0, {"_meta": {"res_w": res_w, "res_h": res_h}})
+
+    return taps
 
 
 def convert_macro_folder(

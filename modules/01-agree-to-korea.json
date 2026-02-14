@@ -1,5 +1,11 @@
 [
   {
+    "_meta": {
+      "res_w": 1280,
+      "res_h": 720
+    }
+  },
+  {
     "action": "clipboard",
     "text": "https://jsbin.com/fehokitejo/1/edit?output",
     "wait_before_s": 0.0,

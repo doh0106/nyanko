@@ -38,6 +38,8 @@ class TapAction:
     screenshot_name: str = ""
     app_package: str = ""
     text: str = ""
+    source_res_w: int = 0
+    source_res_h: int = 0
 
 
 @dataclass
@@ -134,6 +136,41 @@ def app_switch(serial: str) -> None:
         raise RuntimeError(f"{serial}: app_switch failed: {result.stderr.strip()}")
 
 
+def get_display_size(serial: str) -> tuple[int, int]:
+    """Query current display size via 'adb shell wm size'."""
+    result = adb(serial, ["shell", "wm", "size"], timeout=10)
+    # Parse last line: "Physical size: 720x1280" or "Override size: ..."
+    for line in reversed(result.stdout.strip().splitlines()):
+        if "x" in line and ":" in line:
+            dims = line.split(":")[-1].strip().split("x")
+            if len(dims) == 2:
+                return int(dims[0]), int(dims[1])
+    return 0, 0
+
+
+def rotate_if_needed(
+    x: int, y: int,
+    src_w: int, src_h: int,
+    disp_w: int, disp_h: int,
+) -> tuple[int, int]:
+    """Rotate coordinates when source and display orientations differ.
+
+    Handles landscape module on portrait display (and vice versa).
+    Uses ROTATION_90 (CW) mapping which is standard for Android games.
+    """
+    src_landscape = src_w > src_h
+    disp_landscape = disp_w > disp_h
+
+    if src_landscape == disp_landscape:
+        return x, y
+
+    if src_landscape and not disp_landscape:
+        # landscape -> portrait (ROTATION_90 CW)
+        return y, disp_h - 1 - x
+    # portrait -> landscape
+    return disp_w - 1 - y, x
+
+
 def screenshot(serial: str, output_path: Path) -> None:
     result = adb(serial, ["exec-out", "screencap", "-p"], timeout=20, text=False)
     if result.returncode != 0:
@@ -192,11 +229,27 @@ def _resolve_steps(steps: list[dict], modules_dir: Path) -> list[TapAction]:
             module_name = step["module"]
             module_path = _find_module_file(modules_dir, module_name)
             raw_taps = json.loads(module_path.read_text(encoding="utf-8"))
+
+            # Extract _meta (recorded resolution) if present
+            meta_w, meta_h = 0, 0
+            action_taps = []
+            for t in raw_taps:
+                if "_meta" in t:
+                    meta_w = int(t["_meta"].get("res_w", 0))
+                    meta_h = int(t["_meta"].get("res_h", 0))
+                else:
+                    action_taps.append(t)
+
             scale_x = float(step.get("scale_x", 1.0))
             scale_y = float(step.get("scale_y", 1.0))
             if scale_x != 1.0 or scale_y != 1.0:
-                raw_taps = _apply_scaling(raw_taps, scale_x, scale_y)
-            result.extend(_parse_tap(t) for t in raw_taps)
+                action_taps = _apply_scaling(action_taps, scale_x, scale_y)
+
+            for t in action_taps:
+                parsed = _parse_tap(t)
+                parsed.source_res_w = meta_w
+                parsed.source_res_h = meta_h
+                result.append(parsed)
         else:
             result.append(_parse_tap(step))
     return result
@@ -262,6 +315,9 @@ def worker(config: AppConfig, inst: InstanceConfig, stop_event: threading.Event)
         ensure_device(inst.adb_serial, retries=inst.connect_retries, retry_delay_s=inst.connect_retry_delay_s)
         print(f"[{inst.name}] connected: {inst.adb_serial}")
 
+        disp_w, disp_h = get_display_size(inst.adb_serial)
+        print(f"[{inst.name}] display: {disp_w}x{disp_h}")
+
         inst_log_dir = config.log_dir / inst.name
         inst_log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -269,7 +325,7 @@ def worker(config: AppConfig, inst: InstanceConfig, stop_event: threading.Event)
         while not stop_event.is_set():
             loops += 1
             loop_started = time.time()
-            print(f"[{inst.name}] loop {loops} start")
+            print(f"[{inst.name}] loop {loops} start ({len(inst.taps)} actions)")
 
             for i, action in enumerate(inst.taps, start=1):
                 if wait_or_stop(stop_event, action.wait_before_s):
@@ -277,8 +333,15 @@ def worker(config: AppConfig, inst: InstanceConfig, stop_event: threading.Event)
 
                 elapsed = time.time() - loop_started
                 if action.action == "tap":
-                    tap(inst.adb_serial, action.x, action.y)
-                    print(f"[{inst.name}] tap#{i} ({action.x}, {action.y}) t+{elapsed:.2f}s")
+                    tx, ty = action.x, action.y
+                    if action.source_res_w > 0 and disp_w > 0:
+                        tx, ty = rotate_if_needed(
+                            tx, ty,
+                            action.source_res_w, action.source_res_h,
+                            disp_w, disp_h,
+                        )
+                    tap(inst.adb_serial, tx, ty)
+                    print(f"[{inst.name}] tap#{i} ({tx}, {ty}) t+{elapsed:.2f}s")
                 elif action.action == "screenshot":
                     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                     label = action.screenshot_name or f"step{i}"
