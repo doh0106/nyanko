@@ -115,6 +115,32 @@ def wait_or_stop(stop_event: threading.Event, seconds: float) -> bool:
     return stop_event.wait(timeout=seconds)
 
 
+PROGRESS_TICK_S = 0.5
+
+
+def wait_with_progress(stop_event: threading.Event, seconds: float, label: str = "") -> bool:
+    """wait_or_stop with in-place progress updates."""
+    if seconds <= 0:
+        return stop_event.is_set()
+    if seconds < PROGRESS_TICK_S * 2:
+        return stop_event.wait(timeout=seconds)
+
+    elapsed = 0.0
+    while elapsed < seconds:
+        chunk = min(PROGRESS_TICK_S, seconds - elapsed)
+        if stop_event.wait(timeout=chunk):
+            print()
+            return True
+        elapsed += chunk
+        pct = min(elapsed / seconds, 1.0)
+        bar_filled = int(pct * 20)
+        bar = "=" * bar_filled + "-" * (20 - bar_filled)
+        prefix = f"  {label} " if label else "  "
+        print(f"\r{prefix}[{bar}] {pct:.0%} ({elapsed:.1f}/{seconds:.1f}s)", end="", flush=True)
+    print()
+    return stop_event.is_set()
+
+
 # ---------------------------------------------------------------------------
 # Data structures
 # ---------------------------------------------------------------------------
@@ -214,8 +240,7 @@ def worker(config: AppConfig, stop_event: threading.Event) -> None:
     try:
         print(f"=== config: {len(config.actions)} actions, {iter_label} iterations, "
               f"{len(config.screenshot_targets)} targets ===")
-        print(f"waiting {config.startup_wait_s}s before start")
-        if wait_or_stop(stop_event, config.startup_wait_s):
+        if wait_with_progress(stop_event, config.startup_wait_s, "startup"):
             print("stop requested before startup")
             return
 
@@ -237,15 +262,19 @@ def worker(config: AppConfig, stop_event: threading.Event) -> None:
             loop_started = time.time()
             print(f"--- loop {loops}/{iter_label} ({len(config.actions)} actions) ---")
 
+            total = len(config.actions)
             for i, action in enumerate(config.actions, start=1):
-                if wait_or_stop(stop_event, action.wait_before_s):
+                step_pct = f"{(i - 1) / total:.0%}"
+                tag = f"[{i}/{total} {step_pct}]"
+
+                if wait_with_progress(stop_event, action.wait_before_s, f"{tag} wait_before"):
                     break
 
                 elapsed = time.time() - loop_started
 
                 if action.action == "tap":
                     pyautogui.click(action.x, action.y)
-                    print(f"  [{i}/{len(config.actions)}] tap ({action.x},{action.y}) t+{elapsed:.2f}s")
+                    print(f"  {tag} tap ({action.x},{action.y}) t+{elapsed:.1f}s")
 
                 elif action.action == "screenshot":
                     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -254,46 +283,46 @@ def worker(config: AppConfig, stop_event: threading.Event) -> None:
                         shot_path = log_dirs[t.name] / f"{ts}_loop{loops}_{label}.png"
                         try:
                             take_screenshot(t.adb_serial, shot_path)
-                            print(f"  [{i}/{len(config.actions)}] screenshot [{t.name}] saved: {shot_path} t+{elapsed:.2f}s")
+                            print(f"  {tag} screenshot [{t.name}] saved t+{elapsed:.1f}s")
                         except Exception as exc:
-                            print(f"  [{i}/{len(config.actions)}] screenshot [{t.name}] failed: {exc}")
+                            print(f"  {tag} screenshot [{t.name}] failed: {exc}")
 
                 elif action.action == "sleep":
-                    print(f"  [{i}/{len(config.actions)}] sleep {action.delay_after_s:.2f}s t+{elapsed:.2f}s")
+                    print(f"  {tag} sleep {action.delay_after_s:.1f}s t+{elapsed:.1f}s")
 
                 elif action.action == "clear_data":
                     if not action.app_package:
                         raise RuntimeError("clear_data needs app_package")
                     _for_all_targets(config.screenshot_targets, clear_data, action.app_package)
-                    print(f"  [{i}/{len(config.actions)}] clear_data {action.app_package} t+{elapsed:.2f}s")
+                    print(f"  {tag} clear_data {action.app_package} t+{elapsed:.1f}s")
 
                 elif action.action == "start_app":
                     if not action.app_package:
                         raise RuntimeError("start_app needs app_package")
                     _for_all_targets(config.screenshot_targets, start_app, action.app_package)
-                    print(f"  [{i}/{len(config.actions)}] start_app {action.app_package} t+{elapsed:.2f}s")
+                    print(f"  {tag} start_app {action.app_package} t+{elapsed:.1f}s")
 
                 elif action.action == "stop_app":
                     if not action.app_package:
                         raise RuntimeError("stop_app needs app_package")
                     _for_all_targets(config.screenshot_targets, stop_app, action.app_package)
-                    print(f"  [{i}/{len(config.actions)}] stop_app {action.app_package} t+{elapsed:.2f}s")
+                    print(f"  {tag} stop_app {action.app_package} t+{elapsed:.1f}s")
 
                 elif action.action == "clipboard":
                     if action.text:
                         import pyperclip
                         pyperclip.copy(action.text)
                         pyautogui.hotkey("ctrl", "v")
-                        print(f"  [{i}/{len(config.actions)}] clipboard t+{elapsed:.2f}s")
+                        print(f"  {tag} clipboard t+{elapsed:.1f}s")
 
                 elif action.action == "app_switch":
                     _for_all_targets(config.screenshot_targets, app_switch)
-                    print(f"  [{i}/{len(config.actions)}] app_switch t+{elapsed:.2f}s")
+                    print(f"  {tag} app_switch t+{elapsed:.1f}s")
 
                 else:
                     raise RuntimeError(f"unsupported action: {action.action}")
 
-                if wait_or_stop(stop_event, action.delay_after_s):
+                if wait_with_progress(stop_event, action.delay_after_s, f"{tag} delay"):
                     break
 
             loop_elapsed = time.time() - loop_started
@@ -307,7 +336,7 @@ def worker(config: AppConfig, stop_event: threading.Event) -> None:
                 print(f"=== completed {config.iterations} iterations ===")
                 break
 
-            if wait_or_stop(stop_event, config.loop_delay_s):
+            if wait_with_progress(stop_event, config.loop_delay_s, "loop delay"):
                 print("stop requested")
                 break
     except Exception as exc:
