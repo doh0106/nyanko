@@ -36,8 +36,9 @@ from typing import Literal
 # ---------------------------------------------------------------------------
 
 def run_cmd(cmd: list[str], *, timeout: float = 20, text: bool = True) -> subprocess.CompletedProcess:
-    encoding = "utf-8" if text else None
-    return subprocess.run(cmd, capture_output=True, text=text, encoding=encoding, errors="replace", timeout=timeout, check=False)
+    if text:
+        return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout, check=False)
+    return subprocess.run(cmd, capture_output=True, timeout=timeout, check=False)
 
 
 def adb(serial: str, args: list[str], *, timeout: float = 20, text: bool = True) -> subprocess.CompletedProcess:
