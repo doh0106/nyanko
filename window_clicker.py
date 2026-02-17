@@ -209,7 +209,11 @@ def worker(config: AppConfig, stop_event: threading.Event) -> None:
     import pyautogui
     pyautogui.FAILSAFE = False
 
+    iter_label = "infinite" if config.iterations == 0 else str(config.iterations)
+
     try:
+        print(f"=== config: {len(config.actions)} actions, {iter_label} iterations, "
+              f"{len(config.screenshot_targets)} targets ===")
         print(f"waiting {config.startup_wait_s}s before start")
         if wait_or_stop(stop_event, config.startup_wait_s):
             print("stop requested before startup")
@@ -231,7 +235,7 @@ def worker(config: AppConfig, stop_event: threading.Event) -> None:
         while not stop_event.is_set():
             loops += 1
             loop_started = time.time()
-            print(f"loop {loops} start ({len(config.actions)} actions)")
+            print(f"--- loop {loops}/{iter_label} ({len(config.actions)} actions) ---")
 
             for i, action in enumerate(config.actions, start=1):
                 if wait_or_stop(stop_event, action.wait_before_s):
@@ -241,7 +245,7 @@ def worker(config: AppConfig, stop_event: threading.Event) -> None:
 
                 if action.action == "tap":
                     pyautogui.click(action.x, action.y)
-                    print(f"  tap#{i} ({action.x},{action.y}) t+{elapsed:.2f}s")
+                    print(f"  [{i}/{len(config.actions)}] tap ({action.x},{action.y}) t+{elapsed:.2f}s")
 
                 elif action.action == "screenshot":
                     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -250,41 +254,41 @@ def worker(config: AppConfig, stop_event: threading.Event) -> None:
                         shot_path = log_dirs[t.name] / f"{ts}_loop{loops}_{label}.png"
                         try:
                             take_screenshot(t.adb_serial, shot_path)
-                            print(f"  [{t.name}] screenshot#{i} saved: {shot_path} t+{elapsed:.2f}s")
+                            print(f"  [{i}/{len(config.actions)}] screenshot [{t.name}] saved: {shot_path} t+{elapsed:.2f}s")
                         except Exception as exc:
-                            print(f"  [{t.name}] screenshot#{i} failed: {exc}")
+                            print(f"  [{i}/{len(config.actions)}] screenshot [{t.name}] failed: {exc}")
 
                 elif action.action == "sleep":
-                    print(f"  sleep#{i} {action.delay_after_s:.2f}s t+{elapsed:.2f}s")
+                    print(f"  [{i}/{len(config.actions)}] sleep {action.delay_after_s:.2f}s t+{elapsed:.2f}s")
 
                 elif action.action == "clear_data":
                     if not action.app_package:
                         raise RuntimeError("clear_data needs app_package")
                     _for_all_targets(config.screenshot_targets, clear_data, action.app_package)
-                    print(f"  clear_data#{i} {action.app_package} t+{elapsed:.2f}s")
+                    print(f"  [{i}/{len(config.actions)}] clear_data {action.app_package} t+{elapsed:.2f}s")
 
                 elif action.action == "start_app":
                     if not action.app_package:
                         raise RuntimeError("start_app needs app_package")
                     _for_all_targets(config.screenshot_targets, start_app, action.app_package)
-                    print(f"  start_app#{i} {action.app_package} t+{elapsed:.2f}s")
+                    print(f"  [{i}/{len(config.actions)}] start_app {action.app_package} t+{elapsed:.2f}s")
 
                 elif action.action == "stop_app":
                     if not action.app_package:
                         raise RuntimeError("stop_app needs app_package")
                     _for_all_targets(config.screenshot_targets, stop_app, action.app_package)
-                    print(f"  stop_app#{i} {action.app_package} t+{elapsed:.2f}s")
+                    print(f"  [{i}/{len(config.actions)}] stop_app {action.app_package} t+{elapsed:.2f}s")
 
                 elif action.action == "clipboard":
                     if action.text:
                         import pyperclip
                         pyperclip.copy(action.text)
                         pyautogui.hotkey("ctrl", "v")
-                        print(f"  clipboard#{i} t+{elapsed:.2f}s")
+                        print(f"  [{i}/{len(config.actions)}] clipboard t+{elapsed:.2f}s")
 
                 elif action.action == "app_switch":
                     _for_all_targets(config.screenshot_targets, app_switch)
-                    print(f"  app_switch#{i} t+{elapsed:.2f}s")
+                    print(f"  [{i}/{len(config.actions)}] app_switch t+{elapsed:.2f}s")
 
                 else:
                     raise RuntimeError(f"unsupported action: {action.action}")
@@ -292,12 +296,15 @@ def worker(config: AppConfig, stop_event: threading.Event) -> None:
                 if wait_or_stop(stop_event, action.delay_after_s):
                     break
 
+            loop_elapsed = time.time() - loop_started
+            print(f"--- loop {loops}/{iter_label} done ({loop_elapsed:.1f}s) ---")
+
             if stop_event.is_set():
                 print("stop requested")
                 break
 
             if config.iterations > 0 and loops >= config.iterations:
-                print(f"reached iterations={config.iterations} -> stop")
+                print(f"=== completed {config.iterations} iterations ===")
                 break
 
             if wait_or_stop(stop_event, config.loop_delay_s):
