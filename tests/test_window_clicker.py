@@ -89,7 +89,7 @@ class TestLoadConfig:
         assert app.startup_wait_s == 2
         assert app.loop_delay_s == 2
         assert app.connect_retries == 5
-        assert app.iterations == 0
+        assert app.iterations == 1
 
     def test_tap_coordinates_used_directly(self, tmp_path: Path):
         config = self._base_config(

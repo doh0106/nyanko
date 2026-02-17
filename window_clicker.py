@@ -177,7 +177,7 @@ def load_config(path: Path) -> AppConfig:
 
     return AppConfig(
         log_dir=Path(raw.get("log_dir", "logs")),
-        iterations=int(raw.get("iterations", 0)),
+        iterations=int(raw.get("iterations", 1)),
         startup_wait_s=float(raw.get("startup_wait_s", 2)),
         loop_delay_s=float(raw.get("loop_delay_s", 2)),
         connect_retries=int(raw.get("connect_retries", 5)),

@@ -84,6 +84,8 @@ python mouse_position_helper.py
 
 `x`, `y`는 `mouse_position_helper.py`로 측정한 Windows 화면 절대 좌표입니다.
 
+설정 상세는 [CONFIG.md](CONFIG.md) 참고.
+
 ### 3. 실행
 
 ```bat
