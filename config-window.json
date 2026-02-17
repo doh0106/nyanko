@@ -2,158 +2,50 @@
   "log_dir": "logs",
   "iterations": 0,
   "modules_dir": "modules",
-  "instances": [
+  "game_rect": {"left": 0, "top": 31, "width": 960, "height": 540},
+  "game_resolution": {"w": 1280, "h": 720},
+  "startup_wait_s": 3,
+  "loop_delay_s": 2,
+  "connect_retries": 8,
+  "connect_retry_delay_s": 2.0,
+  "screenshot_targets": [
+    {"name": "ld-1", "adb_serial": "127.0.0.1:5555"},
+    {"name": "ld-2", "adb_serial": "127.0.0.1:5557"}
+  ],
+  "steps": [
     {
-      "name": "ld-1",
-      "adb_serial": "127.0.0.1:5555",
-      "game_rect": {"left": 0, "top": 31, "width": 960, "height": 540},
-      "game_resolution": {"w": 1280, "h": 720},
-      "enabled": true,
-      "startup_wait_s": 3,
-      "loop_delay_s": 2,
-      "screenshot_every_loops": 0,
-      "steps": [
-        {
-          "module": "00-home-download-agree",
-          "game_rect": {"left": 320, "top": 0, "width": 320, "height": 540},
-          "game_resolution": {"w": 720, "h": 1280}
-        },
-        {
-          "module": "01-agree-to-korea"
-        },
-        {
-          "module": "02-korea-slot-buy-main"
-        },
-        {
-          "module": "03-main-mongolia"
-        },
-        {
-          "module": "04-mongolia-upgrade-china"
-        },
-        {
-          "module": "05-china-thailand"
-        },
-        {
-          "module": "06-thailand-powerup-cambodia"
-        },
-        {
-          "module": "07-cambodia-philippines"
-        },
-        {
-          "module": "08-philippines-japan-gray-ticket"
-        },
-        {
-          "module": "09-gray-ticket-main"
-        },
-        {
-          "module": "10-main-rare-ticket",
-          "game_rect": {"left": 320, "top": 0, "width": 320, "height": 540},
-          "game_resolution": {"w": 720, "h": 1280}
-        },
-        {
-          "module": "11-main-gold-member"
-        },
-        {
-          "module": "12-main-11pull-gacha"
-        },
-        {
-          "module": "13-gacha-8ticket-storage"
-        },
-        {
-          "action": "screenshot",
-          "screenshot_name": "after_8ticket",
-          "delay_after_s": 0.5
-        },
-        {
-          "module": "14-storage-transfer-code"
-        },
-        {
-          "action": "screenshot",
-          "screenshot_name": "after_transfer_code",
-          "delay_after_s": 0.5
-        },
-        {
-          "module": "15-transfer-code-clear-home"
-        }
-      ],
-      "connect_retries": 8,
-      "connect_retry_delay_s": 2.0
+      "module": "00-home-download-agree",
+      "game_rect": {"left": 320, "top": 0, "width": 320, "height": 540},
+      "game_resolution": {"w": 720, "h": 1280}
     },
+    {"module": "01-agree-to-korea"},
+    {"module": "02-korea-slot-buy-main"},
+    {"module": "03-main-mongolia"},
+    {"module": "04-mongolia-upgrade-china"},
+    {"module": "05-china-thailand"},
+    {"module": "06-thailand-powerup-cambodia"},
+    {"module": "07-cambodia-philippines"},
+    {"module": "08-philippines-japan-gray-ticket"},
+    {"module": "09-gray-ticket-main"},
     {
-      "name": "ld-2",
-      "adb_serial": "127.0.0.1:5557",
-      "game_rect": {"left": 960, "top": 31, "width": 960, "height": 540},
-      "game_resolution": {"w": 1280, "h": 720},
-      "enabled": true,
-      "startup_wait_s": 5,
-      "loop_delay_s": 2,
-      "screenshot_every_loops": 0,
-      "steps": [
-        {
-          "module": "00-home-download-agree",
-          "game_rect": {"left": 1280, "top": 0, "width": 320, "height": 540},
-          "game_resolution": {"w": 720, "h": 1280}
-        },
-        {
-          "module": "01-agree-to-korea"
-        },
-        {
-          "module": "02-korea-slot-buy-main"
-        },
-        {
-          "module": "03-main-mongolia"
-        },
-        {
-          "module": "04-mongolia-upgrade-china"
-        },
-        {
-          "module": "05-china-thailand"
-        },
-        {
-          "module": "06-thailand-powerup-cambodia"
-        },
-        {
-          "module": "07-cambodia-philippines"
-        },
-        {
-          "module": "08-philippines-japan-gray-ticket"
-        },
-        {
-          "module": "09-gray-ticket-main"
-        },
-        {
-          "module": "10-main-rare-ticket",
-          "game_rect": {"left": 1280, "top": 0, "width": 320, "height": 540},
-          "game_resolution": {"w": 720, "h": 1280}
-        },
-        {
-          "module": "11-main-gold-member"
-        },
-        {
-          "module": "12-main-11pull-gacha"
-        },
-        {
-          "module": "13-gacha-8ticket-storage"
-        },
-        {
-          "action": "screenshot",
-          "screenshot_name": "after_8ticket",
-          "delay_after_s": 0.5
-        },
-        {
-          "module": "14-storage-transfer-code"
-        },
-        {
-          "action": "screenshot",
-          "screenshot_name": "after_transfer_code",
-          "delay_after_s": 0.5
-        },
-        {
-          "module": "15-transfer-code-clear-home"
-        }
-      ],
-      "connect_retries": 8,
-      "connect_retry_delay_s": 2.0
-    }
+      "module": "10-main-rare-ticket",
+      "game_rect": {"left": 320, "top": 0, "width": 320, "height": 540},
+      "game_resolution": {"w": 720, "h": 1280}
+    },
+    {"module": "11-main-gold-member"},
+    {"module": "12-main-11pull-gacha"},
+    {"module": "13-gacha-8ticket-storage"},
+    {
+      "action": "screenshot",
+      "screenshot_name": "after_8ticket",
+      "delay_after_s": 0.5
+    },
+    {"module": "14-storage-transfer-code"},
+    {
+      "action": "screenshot",
+      "screenshot_name": "after_transfer_code",
+      "delay_after_s": 0.5
+    },
+    {"module": "15-transfer-code-clear-home"}
   ]
 }

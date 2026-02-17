@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """pyautogui-based window clicker for LDPlayer.
 
-Clicks directly on the LD Player window via pyautogui while keeping
-ADB for screenshots only.  Game-pixel coordinates from module JSONs
-are proportionally mapped to screen coordinates using game_rect.
+Clicks on ONE LD Player window via pyautogui (LD multi-sync replicates
+to other instances).  ADB is used only for screenshots and app control
+across all screenshot_targets.
 
 Usage:
   python window_clicker.py --config config-window.json
@@ -33,7 +33,7 @@ from typing import Literal
 
 
 # ---------------------------------------------------------------------------
-# Shared helpers (same as multi_ld_clicker)
+# ADB helpers
 # ---------------------------------------------------------------------------
 
 def run_cmd(cmd: list[str], *, timeout: float = 20, text: bool = True) -> subprocess.CompletedProcess:
@@ -73,7 +73,7 @@ def ensure_device(serial: str, retries: int = 3, retry_delay_s: float = 2.0) -> 
     )
 
 
-def screenshot(serial: str, output_path: Path) -> None:
+def take_screenshot(serial: str, output_path: Path) -> None:
     result = adb(serial, ["exec-out", "screencap", "-p"], timeout=20, text=False)
     if result.returncode != 0:
         stderr = (result.stderr.decode("utf-8", errors="ignore") if isinstance(result.stderr, bytes) else str(result.stderr))
@@ -149,27 +149,25 @@ class ResolvedAction:
 
 
 @dataclass
-class WindowInstanceConfig:
+class ScreenshotTarget:
     name: str
     adb_serial: str
-    game_rect: GameRect
-    game_res_w: int
-    game_res_h: int
-    enabled: bool
-    startup_wait_s: float
-    loop_delay_s: float
-    actions: list[ResolvedAction]
-    screenshot_every_loops: int
-    connect_retries: int
-    connect_retry_delay_s: float
 
 
 @dataclass
-class WindowAppConfig:
+class AppConfig:
     log_dir: Path
     iterations: int
     modules_dir: Path
-    instances: list[WindowInstanceConfig]
+    game_rect: GameRect
+    game_res_w: int
+    game_res_h: int
+    startup_wait_s: float
+    loop_delay_s: float
+    connect_retries: int
+    connect_retry_delay_s: float
+    actions: list[ResolvedAction]
+    screenshot_targets: list[ScreenshotTarget]
 
 
 # ---------------------------------------------------------------------------
@@ -280,152 +278,157 @@ def _parse_game_rect(raw: dict) -> GameRect:
     )
 
 
-def load_config(path: Path) -> WindowAppConfig:
+def load_config(path: Path) -> AppConfig:
     raw = json.loads(path.read_text(encoding="utf-8"))
     modules_dir = Path(raw.get("modules_dir", "modules"))
 
-    instances: list[WindowInstanceConfig] = []
-    for inst in raw["instances"]:
-        has_taps = "taps" in inst
-        has_steps = "steps" in inst
-        if has_taps and has_steps:
-            raise ValueError(f"Instance '{inst.get('name')}': cannot use both 'taps' and 'steps'")
+    game_rect = _parse_game_rect(raw["game_rect"])
+    gr = raw.get("game_resolution", {})
+    game_res_w = int(gr.get("w", 1280))
+    game_res_h = int(gr.get("h", 720))
 
-        game_rect = _parse_game_rect(inst["game_rect"])
-        gr = inst.get("game_resolution", {})
-        game_res_w = int(gr.get("w", 1280))
-        game_res_h = int(gr.get("h", 720))
+    actions = _resolve_steps(raw.get("steps", []), modules_dir, game_rect, game_res_w, game_res_h)
 
-        if has_steps:
-            actions = _resolve_steps(inst["steps"], modules_dir, game_rect, game_res_w, game_res_h)
-        elif has_taps:
-            actions = [
-                ResolvedAction(_parse_tap(t), game_rect, game_res_w, game_res_h)
-                for t in inst["taps"]
-            ]
-        else:
-            actions = []
+    targets = [
+        ScreenshotTarget(name=str(t["name"]), adb_serial=str(t["adb_serial"]))
+        for t in raw.get("screenshot_targets", [])
+    ]
 
-        instances.append(WindowInstanceConfig(
-            name=str(inst["name"]),
-            adb_serial=str(inst["adb_serial"]),
-            game_rect=game_rect,
-            game_res_w=game_res_w,
-            game_res_h=game_res_h,
-            enabled=bool(inst.get("enabled", True)),
-            startup_wait_s=float(inst.get("startup_wait_s", 2)),
-            loop_delay_s=float(inst.get("loop_delay_s", 2)),
-            actions=actions,
-            screenshot_every_loops=int(inst.get("screenshot_every_loops", 0)),
-            connect_retries=int(inst.get("connect_retries", 5)),
-            connect_retry_delay_s=float(inst.get("connect_retry_delay_s", 2.0)),
-        ))
-
-    return WindowAppConfig(
+    return AppConfig(
         log_dir=Path(raw.get("log_dir", "logs")),
         iterations=int(raw.get("iterations", 0)),
         modules_dir=modules_dir,
-        instances=instances,
+        game_rect=game_rect,
+        game_res_w=game_res_w,
+        game_res_h=game_res_h,
+        startup_wait_s=float(raw.get("startup_wait_s", 2)),
+        loop_delay_s=float(raw.get("loop_delay_s", 2)),
+        connect_retries=int(raw.get("connect_retries", 5)),
+        connect_retry_delay_s=float(raw.get("connect_retry_delay_s", 2.0)),
+        actions=actions,
+        screenshot_targets=targets,
     )
+
+
+# ---------------------------------------------------------------------------
+# ADB fan-out helpers
+# ---------------------------------------------------------------------------
+
+def _for_all_targets(targets: list[ScreenshotTarget], fn, *args) -> None:
+    """Run fn(target.adb_serial, *args) for every target, log errors."""
+    for t in targets:
+        try:
+            fn(t.adb_serial, *args)
+        except Exception as exc:
+            print(f"[{t.name}] {exc}")
 
 
 # ---------------------------------------------------------------------------
 # Worker
 # ---------------------------------------------------------------------------
 
-def worker(config: WindowAppConfig, inst: WindowInstanceConfig, stop_event: threading.Event) -> None:
+def worker(config: AppConfig, stop_event: threading.Event) -> None:
     import pyautogui
     pyautogui.FAILSAFE = False
 
     try:
-        if not inst.enabled:
-            print(f"[{inst.name}] disabled -> skip")
+        print(f"waiting {config.startup_wait_s}s before start")
+        if wait_or_stop(stop_event, config.startup_wait_s):
+            print("stop requested before startup")
             return
 
-        print(f"[{inst.name}] waiting {inst.startup_wait_s}s before start")
-        if wait_or_stop(stop_event, inst.startup_wait_s):
-            print(f"[{inst.name}] stop requested before startup")
-            return
+        # Connect all ADB targets
+        for t in config.screenshot_targets:
+            ensure_device(t.adb_serial, retries=config.connect_retries, retry_delay_s=config.connect_retry_delay_s)
+            print(f"[{t.name}] connected: {t.adb_serial}")
 
-        ensure_device(inst.adb_serial, retries=inst.connect_retries, retry_delay_s=inst.connect_retry_delay_s)
-        print(f"[{inst.name}] connected: {inst.adb_serial}")
-
-        inst_log_dir = config.log_dir / inst.name
-        inst_log_dir.mkdir(parents=True, exist_ok=True)
+        # Create log dirs per target
+        log_dirs: dict[str, Path] = {}
+        for t in config.screenshot_targets:
+            d = config.log_dir / t.name
+            d.mkdir(parents=True, exist_ok=True)
+            log_dirs[t.name] = d
 
         loops = 0
         while not stop_event.is_set():
             loops += 1
             loop_started = time.time()
-            print(f"[{inst.name}] loop {loops} start ({len(inst.actions)} actions)")
+            print(f"loop {loops} start ({len(config.actions)} actions)")
 
-            for i, ra in enumerate(inst.actions, start=1):
+            for i, ra in enumerate(config.actions, start=1):
                 action, rect, res_w, res_h = ra.tap, ra.rect, ra.res_w, ra.res_h
                 if wait_or_stop(stop_event, action.wait_before_s):
                     break
 
                 elapsed = time.time() - loop_started
+
                 if action.action == "tap":
                     sx, sy = game_to_screen(action.x, action.y, res_w, res_h, rect)
                     pyautogui.click(sx, sy)
-                    print(f"[{inst.name}] tap#{i} game({action.x},{action.y}) -> screen({sx},{sy}) t+{elapsed:.2f}s")
+                    print(f"  tap#{i} game({action.x},{action.y}) -> screen({sx},{sy}) t+{elapsed:.2f}s")
+
                 elif action.action == "screenshot":
                     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                     label = action.screenshot_name or f"step{i}"
-                    shot_path = inst_log_dir / f"{ts}_loop{loops}_{label}.png"
-                    screenshot(inst.adb_serial, shot_path)
-                    print(f"[{inst.name}] screenshot#{i} saved: {shot_path} t+{elapsed:.2f}s")
+                    for t in config.screenshot_targets:
+                        shot_path = log_dirs[t.name] / f"{ts}_loop{loops}_{label}.png"
+                        try:
+                            take_screenshot(t.adb_serial, shot_path)
+                            print(f"  [{t.name}] screenshot#{i} saved: {shot_path} t+{elapsed:.2f}s")
+                        except Exception as exc:
+                            print(f"  [{t.name}] screenshot#{i} failed: {exc}")
+
                 elif action.action == "sleep":
-                    print(f"[{inst.name}] sleep#{i} {action.delay_after_s:.2f}s t+{elapsed:.2f}s")
+                    print(f"  sleep#{i} {action.delay_after_s:.2f}s t+{elapsed:.2f}s")
+
                 elif action.action == "clear_data":
                     if not action.app_package:
-                        raise RuntimeError(f"[{inst.name}] clear_data needs app_package")
-                    clear_data(inst.adb_serial, action.app_package)
-                    print(f"[{inst.name}] clear_data#{i} {action.app_package} t+{elapsed:.2f}s")
+                        raise RuntimeError("clear_data needs app_package")
+                    _for_all_targets(config.screenshot_targets, clear_data, action.app_package)
+                    print(f"  clear_data#{i} {action.app_package} t+{elapsed:.2f}s")
+
                 elif action.action == "start_app":
                     if not action.app_package:
-                        raise RuntimeError(f"[{inst.name}] start_app needs app_package")
-                    start_app(inst.adb_serial, action.app_package)
-                    print(f"[{inst.name}] start_app#{i} {action.app_package} t+{elapsed:.2f}s")
+                        raise RuntimeError("start_app needs app_package")
+                    _for_all_targets(config.screenshot_targets, start_app, action.app_package)
+                    print(f"  start_app#{i} {action.app_package} t+{elapsed:.2f}s")
+
                 elif action.action == "stop_app":
                     if not action.app_package:
-                        raise RuntimeError(f"[{inst.name}] stop_app needs app_package")
-                    stop_app(inst.adb_serial, action.app_package)
-                    print(f"[{inst.name}] stop_app#{i} {action.app_package} t+{elapsed:.2f}s")
+                        raise RuntimeError("stop_app needs app_package")
+                    _for_all_targets(config.screenshot_targets, stop_app, action.app_package)
+                    print(f"  stop_app#{i} {action.app_package} t+{elapsed:.2f}s")
+
                 elif action.action == "clipboard":
                     if action.text:
                         import pyperclip
                         pyperclip.copy(action.text)
                         pyautogui.hotkey("ctrl", "v")
-                        print(f"[{inst.name}] clipboard#{i} t+{elapsed:.2f}s")
+                        print(f"  clipboard#{i} t+{elapsed:.2f}s")
+
                 elif action.action == "app_switch":
-                    app_switch(inst.adb_serial)
-                    print(f"[{inst.name}] app_switch#{i} t+{elapsed:.2f}s")
+                    _for_all_targets(config.screenshot_targets, app_switch)
+                    print(f"  app_switch#{i} t+{elapsed:.2f}s")
+
                 else:
-                    raise RuntimeError(f"[{inst.name}] unsupported action: {action.action}")
+                    raise RuntimeError(f"unsupported action: {action.action}")
 
                 if wait_or_stop(stop_event, action.delay_after_s):
                     break
 
             if stop_event.is_set():
-                print(f"[{inst.name}] stop requested")
+                print("stop requested")
                 break
-
-            if inst.screenshot_every_loops > 0 and loops % inst.screenshot_every_loops == 0:
-                ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-                shot_path = inst_log_dir / f"{ts}_loop{loops}.png"
-                screenshot(inst.adb_serial, shot_path)
-                print(f"[{inst.name}] screenshot saved: {shot_path}")
 
             if config.iterations > 0 and loops >= config.iterations:
-                print(f"[{inst.name}] reached iterations={config.iterations} -> stop")
+                print(f"reached iterations={config.iterations} -> stop")
                 break
 
-            if wait_or_stop(stop_event, inst.loop_delay_s):
-                print(f"[{inst.name}] stop requested")
+            if wait_or_stop(stop_event, config.loop_delay_s):
+                print("stop requested")
                 break
     except Exception as exc:
-        print(f"[{inst.name}] ERROR: {exc}")
+        print(f"ERROR: {exc}")
 
 
 # ---------------------------------------------------------------------------
@@ -441,24 +444,18 @@ def main() -> int:
     app_config.log_dir.mkdir(parents=True, exist_ok=True)
     stop_event = threading.Event()
 
-    threads: list[threading.Thread] = []
-    for inst in app_config.instances:
-        t = threading.Thread(target=worker, args=(app_config, inst, stop_event), daemon=False)
-        t.start()
-        threads.append(t)
+    t = threading.Thread(target=worker, args=(app_config, stop_event), daemon=False)
+    t.start()
 
-    failed = False
     try:
-        for t in threads:
-            t.join()
+        t.join()
     except KeyboardInterrupt:
-        failed = True
         print("Interrupted by user, requesting stop...")
         stop_event.set()
-        for t in threads:
-            t.join(timeout=5)
+        t.join(timeout=5)
+        return 1
 
-    return 1 if failed else 0
+    return 0
 
 
 if __name__ == "__main__":
