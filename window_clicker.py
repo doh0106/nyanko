@@ -19,7 +19,6 @@ import subprocess
 import sys
 import threading
 import time
-import unicodedata
 
 if sys.platform == "win32":
     os.environ.setdefault("PYTHONUTF8", "1")
@@ -158,7 +157,6 @@ class ScreenshotTarget:
 class AppConfig:
     log_dir: Path
     iterations: int
-    modules_dir: Path
     game_rect: GameRect
     game_res_w: int
     game_res_h: int
@@ -198,32 +196,8 @@ def _parse_tap(t: dict) -> TapAction:
     )
 
 
-def _apply_scaling(taps: list[dict], scale_x: float, scale_y: float) -> list[dict]:
-    scaled: list[dict] = []
-    for t in taps:
-        copied = dict(t)
-        if "x" in copied:
-            copied["x"] = int(round(float(copied["x"]) * scale_x))
-        if "y" in copied:
-            copied["y"] = int(round(float(copied["y"]) * scale_y))
-        scaled.append(copied)
-    return scaled
-
-
-def _find_module_file(modules_dir: Path, module_name: str) -> Path:
-    direct = modules_dir / f"{module_name}.json"
-    if direct.exists():
-        return direct
-    normalized_name = unicodedata.normalize("NFC", module_name)
-    for candidate in modules_dir.glob("*.json"):
-        if unicodedata.normalize("NFC", candidate.stem) == normalized_name:
-            return candidate
-    raise FileNotFoundError(f"Module not found: {direct}")
-
-
 def _resolve_steps(
     steps: list[dict],
-    modules_dir: Path,
     default_rect: GameRect,
     default_res_w: int,
     default_res_h: int,
@@ -249,22 +223,7 @@ def _resolve_steps(
             step_res_w = int(gr["w"])
             step_res_h = int(gr["h"])
 
-        if "module" in step:
-            module_name = step["module"]
-            module_path = _find_module_file(modules_dir, module_name)
-            raw_taps = json.loads(module_path.read_text(encoding="utf-8"))
-
-            action_taps = [t for t in raw_taps if "_meta" not in t]
-
-            scale_x = float(step.get("scale_x", 1.0))
-            scale_y = float(step.get("scale_y", 1.0))
-            if scale_x != 1.0 or scale_y != 1.0:
-                action_taps = _apply_scaling(action_taps, scale_x, scale_y)
-
-            for t in action_taps:
-                result.append(ResolvedAction(_parse_tap(t), step_rect, step_res_w, step_res_h))
-        else:
-            result.append(ResolvedAction(_parse_tap(step), step_rect, step_res_w, step_res_h))
+        result.append(ResolvedAction(_parse_tap(step), step_rect, step_res_w, step_res_h))
 
     return result
 
@@ -280,14 +239,13 @@ def _parse_game_rect(raw: dict) -> GameRect:
 
 def load_config(path: Path) -> AppConfig:
     raw = json.loads(path.read_text(encoding="utf-8"))
-    modules_dir = Path(raw.get("modules_dir", "modules"))
 
     game_rect = _parse_game_rect(raw["game_rect"])
     gr = raw.get("game_resolution", {})
     game_res_w = int(gr.get("w", 1280))
     game_res_h = int(gr.get("h", 720))
 
-    actions = _resolve_steps(raw.get("steps", []), modules_dir, game_rect, game_res_w, game_res_h)
+    actions = _resolve_steps(raw.get("steps", []), game_rect, game_res_w, game_res_h)
 
     targets = [
         ScreenshotTarget(name=str(t["name"]), adb_serial=str(t["adb_serial"]))
@@ -297,7 +255,6 @@ def load_config(path: Path) -> AppConfig:
     return AppConfig(
         log_dir=Path(raw.get("log_dir", "logs")),
         iterations=int(raw.get("iterations", 0)),
-        modules_dir=modules_dir,
         game_rect=game_rect,
         game_res_w=game_res_w,
         game_res_h=game_res_h,

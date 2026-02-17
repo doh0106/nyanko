@@ -11,7 +11,6 @@ from window_clicker import (
     ResolvedAction,
     ScreenshotTarget,
     TapAction,
-    _apply_scaling,
     _parse_tap,
     _resolve_steps,
     game_to_screen,
@@ -82,71 +81,35 @@ class TestParseTap:
         assert tap.text == "hello"
 
 
-class TestApplyScaling:
-    def test_scales_x_and_y(self):
-        taps = [{"action": "tap", "x": 100, "y": 200}]
-        result = _apply_scaling(taps, 0.5, 2.0)
-        assert result[0]["x"] == 50
-        assert result[0]["y"] == 400
-
-    def test_does_not_mutate(self):
-        original = [{"action": "tap", "x": 100, "y": 200}]
-        _apply_scaling(original, 0.5, 0.5)
-        assert original[0]["x"] == 100
-
-
 class TestResolveSteps:
     _DEFAULT_RECT = GameRect(left=0, top=0, width=960, height=540)
     _DEFAULT_RES_W = 1280
     _DEFAULT_RES_H = 720
 
-    def test_inline_action(self, tmp_path: Path):
+    def test_inline_action(self):
         steps = [{"action": "tap", "x": 10, "y": 20}]
-        result = _resolve_steps(steps, tmp_path, self._DEFAULT_RECT, self._DEFAULT_RES_W, self._DEFAULT_RES_H)
+        result = _resolve_steps(steps, self._DEFAULT_RECT, self._DEFAULT_RES_W, self._DEFAULT_RES_H)
         assert len(result) == 1
         assert result[0].tap.action == "tap"
         assert result[0].tap.x == 10
         assert result[0].rect == self._DEFAULT_RECT
 
-    def test_module_reference(self, tmp_path: Path):
-        module_data = [{"action": "tap", "x": 50, "y": 60, "delay_after_s": 0.2}]
-        (tmp_path / "tutorial.json").write_text(json.dumps(module_data), encoding="utf-8")
-
-        steps = [{"module": "tutorial"}]
-        result = _resolve_steps(steps, tmp_path, self._DEFAULT_RECT, self._DEFAULT_RES_W, self._DEFAULT_RES_H)
-        assert len(result) == 1
-        assert result[0].tap.x == 50
-        assert result[0].rect == self._DEFAULT_RECT
-        assert result[0].res_w == 1280
-
-    def test_step_game_rect_override(self, tmp_path: Path):
-        module_data = [{"action": "tap", "x": 100, "y": 200, "delay_after_s": 0.2}]
-        (tmp_path / "portrait.json").write_text(json.dumps(module_data), encoding="utf-8")
-
+    def test_step_game_rect_override(self):
         override_rect = {"left": 320, "top": 0, "width": 320, "height": 540}
-        steps = [{"module": "portrait", "game_rect": override_rect, "game_resolution": {"w": 720, "h": 1280}}]
-        result = _resolve_steps(steps, tmp_path, self._DEFAULT_RECT, self._DEFAULT_RES_W, self._DEFAULT_RES_H)
+        steps = [{"action": "tap", "x": 100, "y": 200, "game_rect": override_rect, "game_resolution": {"w": 720, "h": 1280}}]
+        result = _resolve_steps(steps, self._DEFAULT_RECT, self._DEFAULT_RES_W, self._DEFAULT_RES_H)
 
         assert result[0].rect == GameRect(left=320, top=0, width=320, height=540)
         assert result[0].res_w == 720
         assert result[0].res_h == 1280
 
-    def test_mixed_steps_default_and_override(self, tmp_path: Path):
-        (tmp_path / "landscape.json").write_text(
-            json.dumps([{"action": "tap", "x": 640, "y": 360, "delay_after_s": 0.2}]),
-            encoding="utf-8",
-        )
-        (tmp_path / "portrait.json").write_text(
-            json.dumps([{"action": "tap", "x": 360, "y": 640, "delay_after_s": 0.2}]),
-            encoding="utf-8",
-        )
-
+    def test_mixed_steps_default_and_override(self):
         steps = [
-            {"module": "landscape"},
-            {"module": "portrait", "game_rect": {"left": 320, "top": 0, "width": 320, "height": 540}, "game_resolution": {"w": 720, "h": 1280}},
+            {"action": "tap", "x": 640, "y": 360},
+            {"action": "tap", "x": 360, "y": 640, "game_rect": {"left": 320, "top": 0, "width": 320, "height": 540}, "game_resolution": {"w": 720, "h": 1280}},
             {"action": "screenshot", "screenshot_name": "done"},
         ]
-        result = _resolve_steps(steps, tmp_path, self._DEFAULT_RECT, self._DEFAULT_RES_W, self._DEFAULT_RES_H)
+        result = _resolve_steps(steps, self._DEFAULT_RECT, self._DEFAULT_RES_W, self._DEFAULT_RES_H)
 
         assert len(result) == 3
         assert result[0].rect == self._DEFAULT_RECT
@@ -155,31 +118,9 @@ class TestResolveSteps:
         assert result[1].res_w == 720
         assert result[2].rect == self._DEFAULT_RECT
 
-    def test_module_with_scaling(self, tmp_path: Path):
-        module_data = [{"action": "tap", "x": 100, "y": 200, "delay_after_s": 0.2}]
-        (tmp_path / "gacha.json").write_text(json.dumps(module_data), encoding="utf-8")
-
-        steps = [{"module": "gacha", "scale_x": 0.5, "scale_y": 0.5}]
-        result = _resolve_steps(steps, tmp_path, self._DEFAULT_RECT, self._DEFAULT_RES_W, self._DEFAULT_RES_H)
-        assert result[0].tap.x == 50
-        assert result[0].tap.y == 100
-
-    def test_module_skips_meta(self, tmp_path: Path):
-        module_data = [
-            {"_meta": {"res_w": 720, "res_h": 1280}},
-            {"action": "tap", "x": 10, "y": 20, "delay_after_s": 0.2},
-        ]
-        (tmp_path / "m.json").write_text(json.dumps(module_data), encoding="utf-8")
-
-        steps = [{"module": "m"}]
-        result = _resolve_steps(steps, tmp_path, self._DEFAULT_RECT, self._DEFAULT_RES_W, self._DEFAULT_RES_H)
-        assert len(result) == 1
-        assert result[0].tap.x == 10
-
-    def test_missing_module_raises(self, tmp_path: Path):
-        steps = [{"module": "nonexistent"}]
-        with pytest.raises(FileNotFoundError, match="Module not found"):
-            _resolve_steps(steps, tmp_path, self._DEFAULT_RECT, self._DEFAULT_RES_W, self._DEFAULT_RES_H)
+    def test_empty_steps(self):
+        result = _resolve_steps([], self._DEFAULT_RECT, self._DEFAULT_RES_W, self._DEFAULT_RES_H)
+        assert result == []
 
 
 class TestLoadConfig:
@@ -219,20 +160,6 @@ class TestLoadConfig:
         assert len(app.screenshot_targets) == 2
         assert app.screenshot_targets[0].name == "ld-1"
         assert app.screenshot_targets[1].adb_serial == "127.0.0.1:5557"
-
-    def test_steps_with_module(self, tmp_path: Path):
-        modules_dir = tmp_path / "modules"
-        modules_dir.mkdir()
-        module_data = [{"action": "tap", "x": 5, "y": 6, "delay_after_s": 0.2}]
-        (modules_dir / "m1.json").write_text(json.dumps(module_data), encoding="utf-8")
-
-        config = self._base_config(
-            modules_dir=str(modules_dir),
-            steps=[{"module": "m1"}],
-        )
-        app = load_config(self._write_config(tmp_path, config))
-        assert len(app.actions) == 1
-        assert app.actions[0].tap.x == 5
 
     def test_empty_steps(self, tmp_path: Path):
         config = self._base_config()
