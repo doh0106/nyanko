@@ -1,0 +1,290 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from window_clicker import (
+    GameRect,
+    ResolvedAction,
+    TapAction,
+    _apply_scaling,
+    _parse_tap,
+    _resolve_steps,
+    game_to_screen,
+    load_config,
+)
+
+
+class TestGameToScreen:
+    """Proportional mapping from game pixels to screen coordinates."""
+
+    def test_center(self):
+        rect = GameRect(left=0, top=0, width=960, height=540)
+        sx, sy = game_to_screen(640, 360, 1280, 720, rect)
+        assert sx == 480
+        assert sy == 270
+
+    def test_origin(self):
+        rect = GameRect(left=100, top=50, width=960, height=540)
+        sx, sy = game_to_screen(0, 0, 1280, 720, rect)
+        assert sx == 100
+        assert sy == 50
+
+    def test_bottom_right(self):
+        rect = GameRect(left=0, top=0, width=960, height=540)
+        sx, sy = game_to_screen(1280, 720, 1280, 720, rect)
+        assert sx == 960
+        assert sy == 540
+
+    def test_with_offset(self):
+        rect = GameRect(left=100, top=31, width=960, height=540)
+        sx, sy = game_to_screen(640, 360, 1280, 720, rect)
+        assert sx == 100 + 480
+        assert sy == 31 + 270
+
+    def test_quarter_point(self):
+        rect = GameRect(left=0, top=0, width=960, height=540)
+        sx, sy = game_to_screen(320, 180, 1280, 720, rect)
+        assert sx == 240
+        assert sy == 135
+
+    def test_different_resolution(self):
+        rect = GameRect(left=0, top=0, width=320, height=540)
+        sx, sy = game_to_screen(360, 640, 720, 1280, rect)
+        assert sx == 160
+        assert sy == 270
+
+
+class TestParseTap:
+    def test_defaults(self):
+        tap = _parse_tap({})
+        assert tap.action == "tap"
+        assert tap.x == 0
+        assert tap.y == 0
+        assert tap.delay_after_s == 0.5
+
+    def test_all_fields(self):
+        tap = _parse_tap({
+            "action": "clipboard",
+            "x": 10,
+            "y": 20,
+            "wait_before_s": 0.3,
+            "delay_after_s": 0.7,
+            "screenshot_name": "shot",
+            "app_package": "com.test",
+            "text": "hello",
+        })
+        assert tap.action == "clipboard"
+        assert tap.text == "hello"
+
+
+class TestApplyScaling:
+    def test_scales_x_and_y(self):
+        taps = [{"action": "tap", "x": 100, "y": 200}]
+        result = _apply_scaling(taps, 0.5, 2.0)
+        assert result[0]["x"] == 50
+        assert result[0]["y"] == 400
+
+    def test_does_not_mutate(self):
+        original = [{"action": "tap", "x": 100, "y": 200}]
+        _apply_scaling(original, 0.5, 0.5)
+        assert original[0]["x"] == 100
+
+
+class TestResolveSteps:
+    _DEFAULT_RECT = GameRect(left=0, top=0, width=960, height=540)
+    _DEFAULT_RES_W = 1280
+    _DEFAULT_RES_H = 720
+
+    def test_inline_action(self, tmp_path: Path):
+        steps = [{"action": "tap", "x": 10, "y": 20}]
+        result = _resolve_steps(steps, tmp_path, self._DEFAULT_RECT, self._DEFAULT_RES_W, self._DEFAULT_RES_H)
+        assert len(result) == 1
+        assert result[0].tap.action == "tap"
+        assert result[0].tap.x == 10
+        assert result[0].rect == self._DEFAULT_RECT
+
+    def test_module_reference(self, tmp_path: Path):
+        module_data = [{"action": "tap", "x": 50, "y": 60, "delay_after_s": 0.2}]
+        (tmp_path / "tutorial.json").write_text(json.dumps(module_data), encoding="utf-8")
+
+        steps = [{"module": "tutorial"}]
+        result = _resolve_steps(steps, tmp_path, self._DEFAULT_RECT, self._DEFAULT_RES_W, self._DEFAULT_RES_H)
+        assert len(result) == 1
+        assert result[0].tap.x == 50
+        assert result[0].rect == self._DEFAULT_RECT
+        assert result[0].res_w == 1280
+
+    def test_step_game_rect_override(self, tmp_path: Path):
+        module_data = [{"action": "tap", "x": 100, "y": 200, "delay_after_s": 0.2}]
+        (tmp_path / "portrait.json").write_text(json.dumps(module_data), encoding="utf-8")
+
+        override_rect = {"left": 320, "top": 0, "width": 320, "height": 540}
+        steps = [{"module": "portrait", "game_rect": override_rect, "game_resolution": {"w": 720, "h": 1280}}]
+        result = _resolve_steps(steps, tmp_path, self._DEFAULT_RECT, self._DEFAULT_RES_W, self._DEFAULT_RES_H)
+
+        assert result[0].rect == GameRect(left=320, top=0, width=320, height=540)
+        assert result[0].res_w == 720
+        assert result[0].res_h == 1280
+
+    def test_mixed_steps_default_and_override(self, tmp_path: Path):
+        (tmp_path / "landscape.json").write_text(
+            json.dumps([{"action": "tap", "x": 640, "y": 360, "delay_after_s": 0.2}]),
+            encoding="utf-8",
+        )
+        (tmp_path / "portrait.json").write_text(
+            json.dumps([{"action": "tap", "x": 360, "y": 640, "delay_after_s": 0.2}]),
+            encoding="utf-8",
+        )
+
+        steps = [
+            {"module": "landscape"},
+            {"module": "portrait", "game_rect": {"left": 320, "top": 0, "width": 320, "height": 540}, "game_resolution": {"w": 720, "h": 1280}},
+            {"action": "screenshot", "screenshot_name": "done"},
+        ]
+        result = _resolve_steps(steps, tmp_path, self._DEFAULT_RECT, self._DEFAULT_RES_W, self._DEFAULT_RES_H)
+
+        assert len(result) == 3
+        # landscape uses default rect
+        assert result[0].rect == self._DEFAULT_RECT
+        assert result[0].res_w == 1280
+        # portrait uses override
+        assert result[1].rect == GameRect(left=320, top=0, width=320, height=540)
+        assert result[1].res_w == 720
+        # inline screenshot uses default
+        assert result[2].rect == self._DEFAULT_RECT
+
+    def test_module_with_scaling(self, tmp_path: Path):
+        module_data = [{"action": "tap", "x": 100, "y": 200, "delay_after_s": 0.2}]
+        (tmp_path / "gacha.json").write_text(json.dumps(module_data), encoding="utf-8")
+
+        steps = [{"module": "gacha", "scale_x": 0.5, "scale_y": 0.5}]
+        result = _resolve_steps(steps, tmp_path, self._DEFAULT_RECT, self._DEFAULT_RES_W, self._DEFAULT_RES_H)
+        assert result[0].tap.x == 50
+        assert result[0].tap.y == 100
+
+    def test_module_skips_meta(self, tmp_path: Path):
+        module_data = [
+            {"_meta": {"res_w": 720, "res_h": 1280}},
+            {"action": "tap", "x": 10, "y": 20, "delay_after_s": 0.2},
+        ]
+        (tmp_path / "m.json").write_text(json.dumps(module_data), encoding="utf-8")
+
+        steps = [{"module": "m"}]
+        result = _resolve_steps(steps, tmp_path, self._DEFAULT_RECT, self._DEFAULT_RES_W, self._DEFAULT_RES_H)
+        assert len(result) == 1
+        assert result[0].tap.x == 10
+
+    def test_missing_module_raises(self, tmp_path: Path):
+        steps = [{"module": "nonexistent"}]
+        with pytest.raises(FileNotFoundError, match="Module not found"):
+            _resolve_steps(steps, tmp_path, self._DEFAULT_RECT, self._DEFAULT_RES_W, self._DEFAULT_RES_H)
+
+
+class TestLoadConfig:
+    def _write_config(self, tmp_path: Path, config: dict) -> Path:
+        path = tmp_path / "config.json"
+        path.write_text(json.dumps(config), encoding="utf-8")
+        return path
+
+    def _base_instance(self, **overrides) -> dict:
+        inst = {
+            "name": "test",
+            "adb_serial": "127.0.0.1:5555",
+            "game_rect": {"left": 0, "top": 0, "width": 960, "height": 540},
+            "game_resolution": {"w": 1280, "h": 720},
+            "taps": [],
+        }
+        inst.update(overrides)
+        return inst
+
+    def test_basic_load(self, tmp_path: Path):
+        config = {"instances": [self._base_instance(
+            taps=[{"action": "tap", "x": 640, "y": 360}]
+        )]}
+        app = load_config(self._write_config(tmp_path, config))
+        assert len(app.instances) == 1
+        inst = app.instances[0]
+        assert inst.game_rect == GameRect(left=0, top=0, width=960, height=540)
+        assert inst.game_res_w == 1280
+        assert inst.game_res_h == 720
+        assert len(inst.actions) == 1
+        assert inst.actions[0].tap.action == "tap"
+
+    def test_steps_mode(self, tmp_path: Path):
+        modules_dir = tmp_path / "modules"
+        modules_dir.mkdir()
+        module_data = [{"action": "tap", "x": 5, "y": 6, "delay_after_s": 0.2}]
+        (modules_dir / "m1.json").write_text(json.dumps(module_data), encoding="utf-8")
+
+        inst = self._base_instance()
+        del inst["taps"]
+        inst["steps"] = [{"module": "m1"}]
+
+        config = {"modules_dir": str(modules_dir), "instances": [inst]}
+        app = load_config(self._write_config(tmp_path, config))
+        assert len(app.instances[0].actions) == 1
+        assert app.instances[0].actions[0].tap.x == 5
+
+    def test_taps_and_steps_raises(self, tmp_path: Path):
+        inst = self._base_instance(
+            taps=[{"action": "tap", "x": 1, "y": 2}],
+            steps=[{"action": "tap", "x": 3, "y": 4}],
+        )
+        config = {"instances": [inst]}
+        with pytest.raises(ValueError, match="cannot use both"):
+            load_config(self._write_config(tmp_path, config))
+
+    def test_empty_actions(self, tmp_path: Path):
+        inst = self._base_instance()
+        del inst["taps"]
+        config = {"instances": [inst]}
+        app = load_config(self._write_config(tmp_path, config))
+        assert app.instances[0].actions == []
+
+    def test_default_resolution(self, tmp_path: Path):
+        inst = self._base_instance()
+        del inst["game_resolution"]
+        config = {"instances": [inst]}
+        app = load_config(self._write_config(tmp_path, config))
+        assert app.instances[0].game_res_w == 1280
+        assert app.instances[0].game_res_h == 720
+
+    def test_actions_carry_correct_rect(self, tmp_path: Path):
+        """Taps-mode actions should all use the instance-level game_rect."""
+        rect = {"left": 100, "top": 50, "width": 800, "height": 450}
+        config = {"instances": [self._base_instance(
+            game_rect=rect,
+            taps=[
+                {"action": "tap", "x": 640, "y": 360},
+                {"action": "tap", "x": 320, "y": 180},
+            ],
+        )]}
+        app = load_config(self._write_config(tmp_path, config))
+        for ra in app.instances[0].actions:
+            assert ra.rect == GameRect(left=100, top=50, width=800, height=450)
+            assert ra.res_w == 1280
+
+
+class TestEndToEndMapping:
+    """Integration: config load -> game_to_screen."""
+
+    def test_tap_maps_correctly(self, tmp_path: Path):
+        config = {
+            "instances": [{
+                "name": "test",
+                "adb_serial": "127.0.0.1:5555",
+                "game_rect": {"left": 100, "top": 31, "width": 960, "height": 540},
+                "game_resolution": {"w": 1280, "h": 720},
+                "taps": [{"action": "tap", "x": 640, "y": 360}],
+            }]
+        }
+        path = tmp_path / "config.json"
+        path.write_text(json.dumps(config), encoding="utf-8")
+        app = load_config(path)
+        ra = app.instances[0].actions[0]
+        sx, sy = game_to_screen(ra.tap.x, ra.tap.y, ra.res_w, ra.res_h, ra.rect)
+        assert sx == 100 + 480
+        assert sy == 31 + 270

@@ -1,0 +1,465 @@
+#!/usr/bin/env python3
+"""pyautogui-based window clicker for LDPlayer.
+
+Clicks directly on the LD Player window via pyautogui while keeping
+ADB for screenshots only.  Game-pixel coordinates from module JSONs
+are proportionally mapped to screen coordinates using game_rect.
+
+Usage:
+  python window_clicker.py --config config-window.json
+"""
+
+from __future__ import annotations
+
+import argparse
+import io
+import json
+import os
+import subprocess
+import sys
+import threading
+import time
+import unicodedata
+
+if sys.platform == "win32":
+    os.environ.setdefault("PYTHONUTF8", "1")
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import Literal
+
+
+# ---------------------------------------------------------------------------
+# Shared helpers (same as multi_ld_clicker)
+# ---------------------------------------------------------------------------
+
+def run_cmd(cmd: list[str], *, timeout: float = 20, text: bool = True) -> subprocess.CompletedProcess:
+    encoding = "utf-8" if text else None
+    return subprocess.run(cmd, capture_output=True, text=text, encoding=encoding, errors="replace", timeout=timeout, check=False)
+
+
+def adb(serial: str, args: list[str], *, timeout: float = 20, text: bool = True) -> subprocess.CompletedProcess:
+    return run_cmd(["adb", "-s", serial] + args, timeout=timeout, text=text)
+
+
+def adb_connect(serial: str) -> subprocess.CompletedProcess:
+    return run_cmd(["adb", "connect", serial], timeout=12)
+
+
+def ensure_device(serial: str, retries: int = 3, retry_delay_s: float = 2.0) -> None:
+    attempts = max(1, retries)
+    last_stdout = ""
+    last_stderr = ""
+
+    for i in range(1, attempts + 1):
+        adb_connect(serial)
+        result = adb(serial, ["get-state"], timeout=10)
+        last_stdout = result.stdout
+        last_stderr = result.stderr
+        if result.returncode == 0 and "device" in result.stdout:
+            return
+
+        if i < attempts:
+            print(f"[{serial}] ADB not ready, retry {i}/{attempts} ...")
+            time.sleep(retry_delay_s)
+
+    raise RuntimeError(
+        f"{serial}: ADB not ready after {attempts} attempts. "
+        f"stdout={last_stdout!r} stderr={last_stderr!r}. "
+        f"Check adb devices / LD ADB setting / serial(port)."
+    )
+
+
+def screenshot(serial: str, output_path: Path) -> None:
+    result = adb(serial, ["exec-out", "screencap", "-p"], timeout=20, text=False)
+    if result.returncode != 0:
+        stderr = (result.stderr.decode("utf-8", errors="ignore") if isinstance(result.stderr, bytes) else str(result.stderr))
+        raise RuntimeError(f"{serial}: screenshot failed: {stderr.strip()}")
+
+    if not result.stdout:
+        raise RuntimeError(f"{serial}: screenshot failed: empty output")
+
+    output_path.write_bytes(result.stdout)
+
+
+def clear_data(serial: str, package: str) -> None:
+    result = adb(serial, ["shell", "pm", "clear", package], timeout=20)
+    if result.returncode != 0 or "Success" not in result.stdout:
+        raise RuntimeError(f"{serial}: clear_data failed for {package}: {result.stdout.strip()} {result.stderr.strip()}")
+
+
+def start_app(serial: str, package: str) -> None:
+    result = adb(serial, ["shell", "monkey", "-p", package, "-c", "android.intent.category.LAUNCHER", "1"], timeout=20)
+    if result.returncode != 0:
+        raise RuntimeError(f"{serial}: start_app failed for {package}: {result.stderr.strip()}")
+
+
+def stop_app(serial: str, package: str) -> None:
+    result = adb(serial, ["shell", "am", "force-stop", package], timeout=15)
+    if result.returncode != 0:
+        raise RuntimeError(f"{serial}: stop_app failed for {package}: {result.stderr.strip()}")
+
+
+def app_switch(serial: str) -> None:
+    result = adb(serial, ["shell", "input", "keyevent", "KEYCODE_APP_SWITCH"], timeout=10)
+    if result.returncode != 0:
+        raise RuntimeError(f"{serial}: app_switch failed: {result.stderr.strip()}")
+
+
+def wait_or_stop(stop_event: threading.Event, seconds: float) -> bool:
+    if seconds <= 0:
+        return stop_event.is_set()
+    return stop_event.wait(timeout=seconds)
+
+
+# ---------------------------------------------------------------------------
+# Data structures
+# ---------------------------------------------------------------------------
+
+@dataclass
+class TapAction:
+    action: Literal["tap", "screenshot", "sleep", "clear_data", "start_app", "stop_app", "clipboard", "app_switch"] = "tap"
+    x: int = 0
+    y: int = 0
+    wait_before_s: float = 0.0
+    delay_after_s: float = 0.5
+    screenshot_name: str = ""
+    app_package: str = ""
+    text: str = ""
+
+
+@dataclass
+class GameRect:
+    left: int
+    top: int
+    width: int
+    height: int
+
+
+@dataclass
+class ResolvedAction:
+    """A TapAction bundled with its effective game_rect and resolution."""
+    tap: TapAction
+    rect: GameRect
+    res_w: int
+    res_h: int
+
+
+@dataclass
+class WindowInstanceConfig:
+    name: str
+    adb_serial: str
+    game_rect: GameRect
+    game_res_w: int
+    game_res_h: int
+    enabled: bool
+    startup_wait_s: float
+    loop_delay_s: float
+    actions: list[ResolvedAction]
+    screenshot_every_loops: int
+    connect_retries: int
+    connect_retry_delay_s: float
+
+
+@dataclass
+class WindowAppConfig:
+    log_dir: Path
+    iterations: int
+    modules_dir: Path
+    instances: list[WindowInstanceConfig]
+
+
+# ---------------------------------------------------------------------------
+# Coordinate mapping
+# ---------------------------------------------------------------------------
+
+def game_to_screen(gx: int, gy: int, res_w: int, res_h: int, rect: GameRect) -> tuple[int, int]:
+    """Map game-pixel coordinates to absolute screen coordinates."""
+    sx = rect.left + round((gx / res_w) * rect.width)
+    sy = rect.top + round((gy / res_h) * rect.height)
+    return sx, sy
+
+
+# ---------------------------------------------------------------------------
+# Config parsing
+# ---------------------------------------------------------------------------
+
+def _parse_tap(t: dict) -> TapAction:
+    return TapAction(
+        action=str(t.get("action", "tap")),
+        x=int(t.get("x", 0)),
+        y=int(t.get("y", 0)),
+        wait_before_s=float(t.get("wait_before_s", 0.0)),
+        delay_after_s=float(t.get("delay_after_s", 0.5)),
+        screenshot_name=str(t.get("screenshot_name", "")),
+        app_package=str(t.get("app_package", "")),
+        text=str(t.get("text", "")),
+    )
+
+
+def _apply_scaling(taps: list[dict], scale_x: float, scale_y: float) -> list[dict]:
+    scaled: list[dict] = []
+    for t in taps:
+        copied = dict(t)
+        if "x" in copied:
+            copied["x"] = int(round(float(copied["x"]) * scale_x))
+        if "y" in copied:
+            copied["y"] = int(round(float(copied["y"]) * scale_y))
+        scaled.append(copied)
+    return scaled
+
+
+def _find_module_file(modules_dir: Path, module_name: str) -> Path:
+    direct = modules_dir / f"{module_name}.json"
+    if direct.exists():
+        return direct
+    normalized_name = unicodedata.normalize("NFC", module_name)
+    for candidate in modules_dir.glob("*.json"):
+        if unicodedata.normalize("NFC", candidate.stem) == normalized_name:
+            return candidate
+    raise FileNotFoundError(f"Module not found: {direct}")
+
+
+def _resolve_steps(
+    steps: list[dict],
+    modules_dir: Path,
+    default_rect: GameRect,
+    default_res_w: int,
+    default_res_h: int,
+) -> list[ResolvedAction]:
+    """Resolve steps into ResolvedAction list with per-step rect/resolution."""
+    result: list[ResolvedAction] = []
+
+    for step in steps:
+        step_rect = default_rect
+        step_res_w = default_res_w
+        step_res_h = default_res_h
+
+        if "game_rect" in step:
+            r = step["game_rect"]
+            step_rect = GameRect(
+                left=int(r["left"]),
+                top=int(r["top"]),
+                width=int(r["width"]),
+                height=int(r["height"]),
+            )
+        if "game_resolution" in step:
+            gr = step["game_resolution"]
+            step_res_w = int(gr["w"])
+            step_res_h = int(gr["h"])
+
+        if "module" in step:
+            module_name = step["module"]
+            module_path = _find_module_file(modules_dir, module_name)
+            raw_taps = json.loads(module_path.read_text(encoding="utf-8"))
+
+            action_taps = [t for t in raw_taps if "_meta" not in t]
+
+            scale_x = float(step.get("scale_x", 1.0))
+            scale_y = float(step.get("scale_y", 1.0))
+            if scale_x != 1.0 or scale_y != 1.0:
+                action_taps = _apply_scaling(action_taps, scale_x, scale_y)
+
+            for t in action_taps:
+                result.append(ResolvedAction(_parse_tap(t), step_rect, step_res_w, step_res_h))
+        else:
+            result.append(ResolvedAction(_parse_tap(step), step_rect, step_res_w, step_res_h))
+
+    return result
+
+
+def _parse_game_rect(raw: dict) -> GameRect:
+    return GameRect(
+        left=int(raw["left"]),
+        top=int(raw["top"]),
+        width=int(raw["width"]),
+        height=int(raw["height"]),
+    )
+
+
+def load_config(path: Path) -> WindowAppConfig:
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    modules_dir = Path(raw.get("modules_dir", "modules"))
+
+    instances: list[WindowInstanceConfig] = []
+    for inst in raw["instances"]:
+        has_taps = "taps" in inst
+        has_steps = "steps" in inst
+        if has_taps and has_steps:
+            raise ValueError(f"Instance '{inst.get('name')}': cannot use both 'taps' and 'steps'")
+
+        game_rect = _parse_game_rect(inst["game_rect"])
+        gr = inst.get("game_resolution", {})
+        game_res_w = int(gr.get("w", 1280))
+        game_res_h = int(gr.get("h", 720))
+
+        if has_steps:
+            actions = _resolve_steps(inst["steps"], modules_dir, game_rect, game_res_w, game_res_h)
+        elif has_taps:
+            actions = [
+                ResolvedAction(_parse_tap(t), game_rect, game_res_w, game_res_h)
+                for t in inst["taps"]
+            ]
+        else:
+            actions = []
+
+        instances.append(WindowInstanceConfig(
+            name=str(inst["name"]),
+            adb_serial=str(inst["adb_serial"]),
+            game_rect=game_rect,
+            game_res_w=game_res_w,
+            game_res_h=game_res_h,
+            enabled=bool(inst.get("enabled", True)),
+            startup_wait_s=float(inst.get("startup_wait_s", 2)),
+            loop_delay_s=float(inst.get("loop_delay_s", 2)),
+            actions=actions,
+            screenshot_every_loops=int(inst.get("screenshot_every_loops", 0)),
+            connect_retries=int(inst.get("connect_retries", 5)),
+            connect_retry_delay_s=float(inst.get("connect_retry_delay_s", 2.0)),
+        ))
+
+    return WindowAppConfig(
+        log_dir=Path(raw.get("log_dir", "logs")),
+        iterations=int(raw.get("iterations", 0)),
+        modules_dir=modules_dir,
+        instances=instances,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Worker
+# ---------------------------------------------------------------------------
+
+def worker(config: WindowAppConfig, inst: WindowInstanceConfig, stop_event: threading.Event) -> None:
+    import pyautogui
+    pyautogui.FAILSAFE = False
+
+    try:
+        if not inst.enabled:
+            print(f"[{inst.name}] disabled -> skip")
+            return
+
+        print(f"[{inst.name}] waiting {inst.startup_wait_s}s before start")
+        if wait_or_stop(stop_event, inst.startup_wait_s):
+            print(f"[{inst.name}] stop requested before startup")
+            return
+
+        ensure_device(inst.adb_serial, retries=inst.connect_retries, retry_delay_s=inst.connect_retry_delay_s)
+        print(f"[{inst.name}] connected: {inst.adb_serial}")
+
+        inst_log_dir = config.log_dir / inst.name
+        inst_log_dir.mkdir(parents=True, exist_ok=True)
+
+        loops = 0
+        while not stop_event.is_set():
+            loops += 1
+            loop_started = time.time()
+            print(f"[{inst.name}] loop {loops} start ({len(inst.actions)} actions)")
+
+            for i, ra in enumerate(inst.actions, start=1):
+                action, rect, res_w, res_h = ra.tap, ra.rect, ra.res_w, ra.res_h
+                if wait_or_stop(stop_event, action.wait_before_s):
+                    break
+
+                elapsed = time.time() - loop_started
+                if action.action == "tap":
+                    sx, sy = game_to_screen(action.x, action.y, res_w, res_h, rect)
+                    pyautogui.click(sx, sy)
+                    print(f"[{inst.name}] tap#{i} game({action.x},{action.y}) -> screen({sx},{sy}) t+{elapsed:.2f}s")
+                elif action.action == "screenshot":
+                    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    label = action.screenshot_name or f"step{i}"
+                    shot_path = inst_log_dir / f"{ts}_loop{loops}_{label}.png"
+                    screenshot(inst.adb_serial, shot_path)
+                    print(f"[{inst.name}] screenshot#{i} saved: {shot_path} t+{elapsed:.2f}s")
+                elif action.action == "sleep":
+                    print(f"[{inst.name}] sleep#{i} {action.delay_after_s:.2f}s t+{elapsed:.2f}s")
+                elif action.action == "clear_data":
+                    if not action.app_package:
+                        raise RuntimeError(f"[{inst.name}] clear_data needs app_package")
+                    clear_data(inst.adb_serial, action.app_package)
+                    print(f"[{inst.name}] clear_data#{i} {action.app_package} t+{elapsed:.2f}s")
+                elif action.action == "start_app":
+                    if not action.app_package:
+                        raise RuntimeError(f"[{inst.name}] start_app needs app_package")
+                    start_app(inst.adb_serial, action.app_package)
+                    print(f"[{inst.name}] start_app#{i} {action.app_package} t+{elapsed:.2f}s")
+                elif action.action == "stop_app":
+                    if not action.app_package:
+                        raise RuntimeError(f"[{inst.name}] stop_app needs app_package")
+                    stop_app(inst.adb_serial, action.app_package)
+                    print(f"[{inst.name}] stop_app#{i} {action.app_package} t+{elapsed:.2f}s")
+                elif action.action == "clipboard":
+                    if action.text:
+                        import pyperclip
+                        pyperclip.copy(action.text)
+                        pyautogui.hotkey("ctrl", "v")
+                        print(f"[{inst.name}] clipboard#{i} t+{elapsed:.2f}s")
+                elif action.action == "app_switch":
+                    app_switch(inst.adb_serial)
+                    print(f"[{inst.name}] app_switch#{i} t+{elapsed:.2f}s")
+                else:
+                    raise RuntimeError(f"[{inst.name}] unsupported action: {action.action}")
+
+                if wait_or_stop(stop_event, action.delay_after_s):
+                    break
+
+            if stop_event.is_set():
+                print(f"[{inst.name}] stop requested")
+                break
+
+            if inst.screenshot_every_loops > 0 and loops % inst.screenshot_every_loops == 0:
+                ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                shot_path = inst_log_dir / f"{ts}_loop{loops}.png"
+                screenshot(inst.adb_serial, shot_path)
+                print(f"[{inst.name}] screenshot saved: {shot_path}")
+
+            if config.iterations > 0 and loops >= config.iterations:
+                print(f"[{inst.name}] reached iterations={config.iterations} -> stop")
+                break
+
+            if wait_or_stop(stop_event, inst.loop_delay_s):
+                print(f"[{inst.name}] stop requested")
+                break
+    except Exception as exc:
+        print(f"[{inst.name}] ERROR: {exc}")
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="pyautogui window clicker for LDPlayer")
+    parser.add_argument("--config", default="config-window.json", help="Path to config JSON")
+    args = parser.parse_args()
+
+    app_config = load_config(Path(args.config))
+    app_config.log_dir.mkdir(parents=True, exist_ok=True)
+    stop_event = threading.Event()
+
+    threads: list[threading.Thread] = []
+    for inst in app_config.instances:
+        t = threading.Thread(target=worker, args=(app_config, inst, stop_event), daemon=False)
+        t.start()
+        threads.append(t)
+
+    failed = False
+    try:
+        for t in threads:
+            t.join()
+    except KeyboardInterrupt:
+        failed = True
+        print("Interrupted by user, requesting stop...")
+        stop_event.set()
+        for t in threads:
+            t.join(timeout=5)
+
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
