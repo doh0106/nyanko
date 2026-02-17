@@ -18,26 +18,9 @@ def get_pointer_xy() -> tuple[int, int]:
     return x, y
 
 
-def measure_game_rect() -> None:
-    """Interactive measurement of game_rect (top-left + bottom-right corners)."""
-    print("[game_rect measurement]")
-    input("Move cursor to TOP-LEFT corner of the game area, then press Enter...")
-    x1, y1 = get_pointer_xy()
-    print(f"  #1: x={x1}, y={y1}")
-
-    input("Move cursor to BOTTOM-RIGHT corner of the game area, then press Enter...")
-    x2, y2 = get_pointer_xy()
-    print(f"  #2: x={x2}, y={y2}")
-
-    width = x2 - x1
-    height = y2 - y1
-    print(f'=> game_rect: {{"left": {x1}, "top": {y1}, "width": {width}, "height": {height}}}')
-
-
 def main() -> int:
     print("[Mouse Position Helper]")
-    print("- Enter: capture current cursor position")
-    print("- r + Enter: measure game_rect (top-left & bottom-right)")
+    print("- Enter: capture current cursor position (screen coordinates)")
     print("- q + Enter: quit")
 
     count = 0
@@ -45,9 +28,6 @@ def main() -> int:
         cmd = input("> ").strip().lower()
         if cmd == "q":
             break
-        if cmd == "r":
-            measure_game_rect()
-            continue
         x, y = get_pointer_xy()
         count += 1
         print(f"#{count}: x={x}, y={y}")

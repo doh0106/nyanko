@@ -10,19 +10,13 @@ LD Player 멀티 조작 기능으로 여러 인스턴스에 클릭이 복제되�
 ## 구조
 
 ```
-pyautogui.click(screen_x, screen_y)     ← 1개 윈도우만 클릭
+pyautogui.click(x, y)               ← 윈도우 스크린 좌표로 직접 클릭
     ↕  LD 멀티 조작이 나머지 인스턴스에 복제
 ADB screencap → logs/ld-1/, logs/ld-2/  ← 각 인스턴스별 스크린샷
 ```
 
-### 좌표 매핑
-
-게임 픽셀 좌표를 `game_rect`로 비례 매핑하여 스크린 좌표로 변환합니다.
-
-```
-screen_x = rect.left + (game_x / res_w) * rect.width
-screen_y = rect.top  + (game_y / res_h) * rect.height
-```
+config의 `x`, `y`는 **Windows 화면 절대 좌표**입니다.
+`mouse_position_helper.py`로 클릭할 위치의 좌표를 측정하여 사용합니다.
 
 ---
 
@@ -32,7 +26,7 @@ screen_y = rect.top  + (game_y / res_h) * rect.height
 |------|------|
 | `window_clicker.py` | 메인 실행 스크립트 |
 | `config-window.json` | 설정 파일 |
-| `mouse_position_helper.py` | 마우스 좌표 / game_rect 측정 도구 |
+| `mouse_position_helper.py` | 마우스 스크린 좌표 측정 도구 |
 | `requirements.txt` | Python 의존성 |
 
 ---
@@ -53,25 +47,22 @@ pip install -r requirements.txt
 
 ## 사용법
 
-### 1. game_rect 측정
+### 1. 좌표 측정
 
-`mouse_position_helper.py`로 LD Player 게임 영역의 스크린 좌표를 측정합니다.
+`mouse_position_helper.py`로 클릭할 위치의 Windows 스크린 좌표를 측정합니다.
 
 ```bat
 python mouse_position_helper.py
 ```
 
-- `Enter`: 현재 커서 좌표 출력
-- `r`: game_rect 측정 모드 (좌상단 → 우하단)
+- `Enter`: 현재 커서의 스크린 좌표 출력
 - `q`: 종료
 
 ```
-> r
-Move cursor to TOP-LEFT corner of the game area, then press Enter...
-  #1: x=0, y=31
-Move cursor to BOTTOM-RIGHT corner of the game area, then press Enter...
-  #2: x=960, y=571
-=> game_rect: {"left": 0, "top": 31, "width": 960, "height": 540}
+> (Enter)
+#1: x=480, y=301
+> (Enter)
+#2: x=100, y=200
 ```
 
 ### 2. config 설정
@@ -80,18 +71,18 @@ Move cursor to BOTTOM-RIGHT corner of the game area, then press Enter...
 
 ```json
 {
-  "game_rect": {"left": 0, "top": 31, "width": 960, "height": 540},
-  "game_resolution": {"w": 1280, "h": 720},
   "screenshot_targets": [
     {"name": "ld-1", "adb_serial": "127.0.0.1:5555"},
     {"name": "ld-2", "adb_serial": "127.0.0.1:5557"}
   ],
   "steps": [
-    {"action": "tap", "x": 640, "y": 360, "delay_after_s": 1.0},
+    {"action": "tap", "x": 480, "y": 301, "delay_after_s": 1.0},
     {"action": "screenshot", "screenshot_name": "example", "delay_after_s": 0.5}
   ]
 }
 ```
+
+`x`, `y`는 `mouse_position_helper.py`로 측정한 Windows 화면 절대 좌표입니다.
 
 ### 3. 실행
 
@@ -109,8 +100,6 @@ python window_clicker.py --config config-window.json
 
 | 필드 | 기본값 | 설명 |
 |------|--------|------|
-| `game_rect` | (필수) | 게임 영역의 스크린 절대좌표 |
-| `game_resolution` | `1280x720` | 게임 내부 해상도 (좌표 기준) |
 | `screenshot_targets` | `[]` | ADB 스크린샷/앱 제어 대상 목록 |
 | `steps` | `[]` | 실행할 액션 시퀀스 |
 | `iterations` | `0` | 반복 횟수 (0 = 무한) |
@@ -122,7 +111,7 @@ python window_clicker.py --config config-window.json
 
 | action | 실행 방법 | 필수 필드 |
 |--------|----------|-----------|
-| `tap` | `pyautogui.click()` | `x`, `y` |
+| `tap` | `pyautogui.click(x, y)` | `x`, `y` (스크린 좌표) |
 | `screenshot` | ADB `screencap` (모든 targets) | `screenshot_name` |
 | `sleep` | `time.sleep()` | - |
 | `clipboard` | `pyperclip.copy()` + `Ctrl+V` | `text` |
@@ -138,19 +127,6 @@ python window_clicker.py --config config-window.json
 | `wait_before_s` | `0.0` | 액션 실행 전 대기 |
 | `delay_after_s` | `0.5` | 액션 실행 후 대기 |
 
-### step별 game_rect 오버라이드
-
-세로/가로 전환이 필요한 step에서 개별 오버라이드 가능:
-
-```json
-{
-  "action": "tap",
-  "x": 360, "y": 640,
-  "game_rect": {"left": 320, "top": 0, "width": 320, "height": 540},
-  "game_resolution": {"w": 720, "h": 1280}
-}
-```
-
 ---
 
 ## 문제 해결
@@ -164,8 +140,8 @@ adb devices
 ```
 
 ### 클릭 위치가 어긋날 때
-1. `mouse_position_helper.py`로 `game_rect` 재측정
-2. LD Player 창 위치/크기 변경 시 `game_rect` 업데이트 필요
+1. `mouse_position_helper.py`로 좌표 재측정
+2. LD Player 창 위치/크기 변경 시 config 좌표 업데이트 필요
 
 ---
 

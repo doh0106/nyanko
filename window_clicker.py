@@ -131,23 +131,6 @@ class TapAction:
 
 
 @dataclass
-class GameRect:
-    left: int
-    top: int
-    width: int
-    height: int
-
-
-@dataclass
-class ResolvedAction:
-    """A TapAction bundled with its effective game_rect and resolution."""
-    tap: TapAction
-    rect: GameRect
-    res_w: int
-    res_h: int
-
-
-@dataclass
 class ScreenshotTarget:
     name: str
     adb_serial: str
@@ -157,26 +140,12 @@ class ScreenshotTarget:
 class AppConfig:
     log_dir: Path
     iterations: int
-    game_rect: GameRect
-    game_res_w: int
-    game_res_h: int
     startup_wait_s: float
     loop_delay_s: float
     connect_retries: int
     connect_retry_delay_s: float
-    actions: list[ResolvedAction]
+    actions: list[TapAction]
     screenshot_targets: list[ScreenshotTarget]
-
-
-# ---------------------------------------------------------------------------
-# Coordinate mapping
-# ---------------------------------------------------------------------------
-
-def game_to_screen(gx: int, gy: int, res_w: int, res_h: int, rect: GameRect) -> tuple[int, int]:
-    """Map game-pixel coordinates to absolute screen coordinates."""
-    sx = rect.left + round((gx / res_w) * rect.width)
-    sy = rect.top + round((gy / res_h) * rect.height)
-    return sx, sy
 
 
 # ---------------------------------------------------------------------------
@@ -196,56 +165,10 @@ def _parse_tap(t: dict) -> TapAction:
     )
 
 
-def _resolve_steps(
-    steps: list[dict],
-    default_rect: GameRect,
-    default_res_w: int,
-    default_res_h: int,
-) -> list[ResolvedAction]:
-    """Resolve steps into ResolvedAction list with per-step rect/resolution."""
-    result: list[ResolvedAction] = []
-
-    for step in steps:
-        step_rect = default_rect
-        step_res_w = default_res_w
-        step_res_h = default_res_h
-
-        if "game_rect" in step:
-            r = step["game_rect"]
-            step_rect = GameRect(
-                left=int(r["left"]),
-                top=int(r["top"]),
-                width=int(r["width"]),
-                height=int(r["height"]),
-            )
-        if "game_resolution" in step:
-            gr = step["game_resolution"]
-            step_res_w = int(gr["w"])
-            step_res_h = int(gr["h"])
-
-        result.append(ResolvedAction(_parse_tap(step), step_rect, step_res_w, step_res_h))
-
-    return result
-
-
-def _parse_game_rect(raw: dict) -> GameRect:
-    return GameRect(
-        left=int(raw["left"]),
-        top=int(raw["top"]),
-        width=int(raw["width"]),
-        height=int(raw["height"]),
-    )
-
-
 def load_config(path: Path) -> AppConfig:
     raw = json.loads(path.read_text(encoding="utf-8"))
 
-    game_rect = _parse_game_rect(raw["game_rect"])
-    gr = raw.get("game_resolution", {})
-    game_res_w = int(gr.get("w", 1280))
-    game_res_h = int(gr.get("h", 720))
-
-    actions = _resolve_steps(raw.get("steps", []), game_rect, game_res_w, game_res_h)
+    actions = [_parse_tap(s) for s in raw.get("steps", [])]
 
     targets = [
         ScreenshotTarget(name=str(t["name"]), adb_serial=str(t["adb_serial"]))
@@ -255,9 +178,6 @@ def load_config(path: Path) -> AppConfig:
     return AppConfig(
         log_dir=Path(raw.get("log_dir", "logs")),
         iterations=int(raw.get("iterations", 0)),
-        game_rect=game_rect,
-        game_res_w=game_res_w,
-        game_res_h=game_res_h,
         startup_wait_s=float(raw.get("startup_wait_s", 2)),
         loop_delay_s=float(raw.get("loop_delay_s", 2)),
         connect_retries=int(raw.get("connect_retries", 5)),
@@ -312,17 +232,15 @@ def worker(config: AppConfig, stop_event: threading.Event) -> None:
             loop_started = time.time()
             print(f"loop {loops} start ({len(config.actions)} actions)")
 
-            for i, ra in enumerate(config.actions, start=1):
-                action, rect, res_w, res_h = ra.tap, ra.rect, ra.res_w, ra.res_h
+            for i, action in enumerate(config.actions, start=1):
                 if wait_or_stop(stop_event, action.wait_before_s):
                     break
 
                 elapsed = time.time() - loop_started
 
                 if action.action == "tap":
-                    sx, sy = game_to_screen(action.x, action.y, res_w, res_h, rect)
-                    pyautogui.click(sx, sy)
-                    print(f"  tap#{i} game({action.x},{action.y}) -> screen({sx},{sy}) t+{elapsed:.2f}s")
+                    pyautogui.click(action.x, action.y)
+                    print(f"  tap#{i} ({action.x},{action.y}) t+{elapsed:.2f}s")
 
                 elif action.action == "screenshot":
                     ts = datetime.now().strftime("%Y%m%d_%H%M%S")

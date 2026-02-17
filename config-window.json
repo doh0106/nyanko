@@ -1,8 +1,6 @@
 {
   "log_dir": "logs",
   "iterations": 0,
-  "game_rect": {"left": 0, "top": 31, "width": 960, "height": 540},
-  "game_resolution": {"w": 1280, "h": 720},
   "startup_wait_s": 3,
   "loop_delay_s": 2,
   "connect_retries": 8,
