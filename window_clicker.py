@@ -225,14 +225,15 @@ def _do_wait(
     *,
     auto_interval: float = 0,
     targets: list[ScreenshotTarget] | None = None,
-    loop_dir: Path | None = None,
+    log_dirs: dict[str, Path] | None = None,
     step_label: str = "",
+    loop_num: int = 0,
 ) -> bool:
     """Wait with progress bar and optional periodic auto-screenshots."""
     if seconds <= 0:
         return stop_event.is_set()
 
-    use_auto = auto_interval > 0 and targets and loop_dir
+    use_auto = auto_interval > 0 and targets and log_dirs
     if not use_auto:
         return wait_with_progress(stop_event, seconds, label)
 
@@ -257,7 +258,7 @@ def _do_wait(
             shot_count += 1
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             for t in targets:
-                shot_path = loop_dir / f"{ts}_{t.name}_{step_label}_auto{shot_count:04d}.png"
+                shot_path = log_dirs[t.name] / f"{ts}_loop{loop_num}_{step_label}_auto{shot_count:04d}.png"
                 try:
                     take_screenshot(t.adb_serial, shot_path)
                 except Exception:
@@ -306,14 +307,17 @@ def worker(config: AppConfig, stop_event: threading.Event) -> None:
             ensure_device(t.adb_serial, retries=config.connect_retries, retry_delay_s=config.connect_retry_delay_s)
             print(f"[{t.name}] connected: {t.adb_serial}")
 
+        # Create log dirs per target
+        log_dirs: dict[str, Path] = {}
+        for t in config.screenshot_targets:
+            d = config.log_dir / t.name
+            d.mkdir(parents=True, exist_ok=True)
+            log_dirs[t.name] = d
+
         loops = 0
         while not stop_event.is_set():
             loops += 1
             loop_started = time.time()
-
-            loop_dir = config.log_dir / f"loop{loops}"
-            loop_dir.mkdir(parents=True, exist_ok=True)
-
             print(f"--- loop {loops}/{iter_label} ({len(config.actions)} actions) ---")
 
             total = len(config.actions)
@@ -324,7 +328,7 @@ def worker(config: AppConfig, stop_event: threading.Event) -> None:
 
                 if _do_wait(stop_event, action.wait_before_s, f"{tag} wait_before",
                             auto_interval=step_auto, targets=config.screenshot_targets,
-                            loop_dir=loop_dir, step_label=f"s{i}_before"):
+                            log_dirs=log_dirs, step_label=f"s{i}_before", loop_num=loops):
                     break
 
                 elapsed = time.time() - loop_started
@@ -337,7 +341,7 @@ def worker(config: AppConfig, stop_event: threading.Event) -> None:
                     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                     label = action.screenshot_name or f"step{i}"
                     for t in config.screenshot_targets:
-                        shot_path = loop_dir / f"{ts}_{t.name}_{label}.png"
+                        shot_path = log_dirs[t.name] / f"{ts}_loop{loops}_{label}.png"
                         try:
                             take_screenshot(t.adb_serial, shot_path)
                             print(f"  {tag} screenshot [{t.name}] saved t+{elapsed:.1f}s")
@@ -347,7 +351,7 @@ def worker(config: AppConfig, stop_event: threading.Event) -> None:
                 elif action.action == "pc_screenshot":
                     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                     label = action.screenshot_name or f"step{i}"
-                    shot_path = loop_dir / f"{ts}_pc_{label}.png"
+                    shot_path = config.log_dir / f"{ts}_loop{loops}_pc_{label}.png"
                     try:
                         pyautogui.screenshot(str(shot_path))
                         print(f"  {tag} pc_screenshot saved: {shot_path} t+{elapsed:.1f}s")
@@ -391,7 +395,7 @@ def worker(config: AppConfig, stop_event: threading.Event) -> None:
 
                 if _do_wait(stop_event, action.delay_after_s, f"{tag} delay",
                             auto_interval=step_auto, targets=config.screenshot_targets,
-                            loop_dir=loop_dir, step_label=f"s{i}"):
+                            log_dirs=log_dirs, step_label=f"s{i}", loop_num=loops):
                     break
 
             loop_elapsed = time.time() - loop_started
