@@ -1,0 +1,149 @@
+{
+  "log_dir": "logs",
+  "iterations": 200,
+  "startup_wait_s": 3,
+  "loop_delay_s": 2,
+  "connect_retries": 2,
+  "connect_retry_delay_s": 1.0,
+  "screenshot_targets": [
+    {"name": "ld-1", "adb_serial": "emulator-5566"},
+    {"name": "ld-2", "adb_serial": "emulator-5568"},
+    {"name": "ld-3", "adb_serial": "emulator-5570"},
+    {"name": "ld-4", "adb_serial": "emulator-5572"}
+  ],
+  "steps": [
+    { "comment": "1000_before_gacha",
+      "action": "tap", "x": 599, "y": 988, "delay_after_s": 5}, 
+    {"action": "sleep", "delay_after_s": 1100},
+
+    { "comment": "1100_gacha",
+      "action": "tap", "x": 598, "y": 884}, 
+
+{"action": "sleep", "delay_after_s": 3.6},
+{"action": "sleep", "delay_after_s": 3.6},
+{"action": "sleep", "delay_after_s": 4.6},
+{"action": "screenshot","screenshot_name": "char_03"},
+{"action": "sleep", "delay_after_s": 2.6},
+{"action": "sleep", "delay_after_s": 3.8},
+{"action": "screenshot","screenshot_name": "char_05"},
+{"action": "sleep", "delay_after_s": 3.4},
+{"action": "screenshot","screenshot_name": "char_06"},
+{"action": "sleep", "delay_after_s": 3.6},
+{"action": "sleep", "delay_after_s": 3.6},
+{"action": "screenshot","screenshot_name": "char_08"},
+{"action": "sleep", "delay_after_s": 3.8},
+{"action": "screenshot","screenshot_name": "char_09"},
+{"action": "sleep", "delay_after_s": 3.4},
+{"action": "sleep", "delay_after_s": 3.6},
+{"action": "screenshot","screenshot_name": "char_11"},
+{"action": "sleep", "delay_after_s": 3.8},
+{"action": "screenshot","screenshot_name": "char_12"},
+{"action": "sleep", "delay_after_s": 3.6},
+{"action": "screenshot","screenshot_name": "char_13"},
+{"action": "sleep", "delay_after_s": 3.4},
+{"action": "sleep", "delay_after_s": 3.6},
+{"action": "screenshot","screenshot_name": "char_15"},
+{"action": "sleep", "delay_after_s": 3.6},
+{"action": "screenshot","screenshot_name": "char_16"},
+{"action": "sleep", "delay_after_s": 3.6},
+{"action": "sleep", "delay_after_s": 3.6},
+{"action": "screenshot","screenshot_name": "char_18"},
+{"action": "sleep", "delay_after_s": 3.6},
+{"action": "sleep", "delay_after_s": 3.6},
+{"action": "sleep", "delay_after_s": 3.6},
+
+
+
+{"action": "sleep", "delay_after_s": 3.6},
+{"action": "sleep", "delay_after_s": 3.6},
+{"action": "screenshot","screenshot_name": "char_22"},
+
+{"action": "sleep", "delay_after_s": 3.6},
+{"action": "sleep", "delay_after_s": 3.6},
+{"action": "sleep", "delay_after_s": 3.6},
+{"action": "screenshot","screenshot_name": "char_26"},
+{"action": "sleep", "delay_after_s": 3.6},
+{"action": "sleep", "delay_after_s": 3.6},
+{"action": "sleep", "delay_after_s": 3.6},
+{"action": "sleep", "delay_after_s": 3.6},
+{"action": "screenshot","screenshot_name": "char_30"},
+    {"action": "sleep", "delay_after_s": 4},
+{"action": "sleep", "delay_after_s": 10.2},
+{"action": "screenshot","screenshot_name": "ticket_01"},
+{"action": "sleep", "delay_after_s": 9.5},
+{"action": "sleep", "delay_after_s": 9.5},
+{"action": "screenshot","screenshot_name": "ticket_03"},
+{"action": "sleep", "delay_after_s": 9.5},
+{"action": "sleep", "delay_after_s": 9.5},
+{"action": "screenshot","screenshot_name": "ticket_05"},
+{"action": "sleep", "delay_after_s": 9.5},
+{"action": "sleep", "delay_after_s": 9.2},
+{"action": "screenshot","screenshot_name": "ticket_07"},
+{"action": "sleep", "delay_after_s": 9.6},
+{"action": "sleep", "delay_after_s": 9.5},
+{"action": "screenshot","screenshot_name": "ticket_09"},
+{"action": "sleep", "delay_after_s": 9.5},
+{"action": "sleep", "delay_after_s": 1.2},
+
+{"action": "screenshot","screenshot_name": "ticket_10"},
+
+{"action": "sleep", "delay_after_s": 9.5},
+{"action": "screenshot","screenshot_name": "final_02"},
+
+{"action": "sleep", "delay_after_s": 9.5},
+
+  {"action": "sleep", "delay_after_s": 5},
+    {"action": "screenshot","screenshot_name": "final_03"},
+
+
+
+    { "comment": "save",
+      "action": "tap", "x": 598, "y": 834, "delay_after_s": 5}, 
+    {"action": "sleep", "delay_after_s": 30},
+
+    
+    {
+      "action": "screenshot",
+      "screenshot_name": "code_01",
+      "delay_after_s": 0.5
+    },
+    {"action": "sleep", "delay_after_s": 1},
+    {
+      "action": "screenshot",
+      "screenshot_name": "code_02",
+      "delay_after_s": 0.5
+    },
+        {"action": "sleep", "delay_after_s": 1},
+    {
+      "action": "screenshot",
+      "screenshot_name": "code_03",
+      "delay_after_s": 0.5
+    },
+        {"action": "sleep", "delay_after_s": 1},
+    {
+      "action": "screenshot",
+      "screenshot_name": "code_04",
+      "delay_after_s": 0.5
+    },
+        {"action": "sleep", "delay_after_s": 1},
+    {
+      "action": "screenshot",
+      "screenshot_name": "code_05",
+      "delay_after_s": 0.5
+    },
+        {"action": "sleep", "delay_after_s": 1},
+    {
+      "action": "screenshot",
+      "screenshot_name": "code_06",
+      "delay_after_s": 0.5
+    },
+    {
+      "action": "pc_screenshot",
+      "screenshot_name": "pc_screenshot",
+      "delay_after_s": 0.5
+    },
+
+    { "comment": "clear_app",
+      "action": "tap", "x": 598, "y": 783, "delay_after_s": 32}
+  ]
+}
