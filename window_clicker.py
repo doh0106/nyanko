@@ -73,7 +73,7 @@ def ensure_device(serial: str, retries: int = 3, retry_delay_s: float = 2.0) -> 
     )
 
 
-def take_screenshot(serial: str, output_path: Path) -> None:
+def take_screenshot(serial: str, output_path: Path, *, jpeg_quality: int = 0) -> None:
     result = adb(serial, ["exec-out", "screencap", "-p"], timeout=20, text=False)
     if result.returncode != 0:
         stderr = (result.stderr.decode("utf-8", errors="ignore") if isinstance(result.stderr, bytes) else str(result.stderr))
@@ -82,7 +82,13 @@ def take_screenshot(serial: str, output_path: Path) -> None:
     if not result.stdout:
         raise RuntimeError(f"{serial}: screenshot failed: empty output")
 
-    output_path.write_bytes(result.stdout)
+    if jpeg_quality > 0:
+        from PIL import Image
+        img = Image.open(io.BytesIO(result.stdout))
+        output_path = output_path.with_suffix(".jpg")
+        img.save(output_path, "JPEG", quality=jpeg_quality)
+    else:
+        output_path.write_bytes(result.stdout)
 
 
 def clear_data(serial: str, package: str) -> None:
@@ -173,6 +179,7 @@ class AppConfig:
     connect_retries: int
     connect_retry_delay_s: float
     auto_screenshot_interval_s: float
+    auto_screenshot_quality: int
     actions: list[TapAction]
     screenshot_targets: list[ScreenshotTarget]
 
@@ -213,6 +220,7 @@ def load_config(path: Path) -> AppConfig:
         connect_retries=int(raw.get("connect_retries", 5)),
         connect_retry_delay_s=float(raw.get("connect_retry_delay_s", 2.0)),
         auto_screenshot_interval_s=float(raw.get("auto_screenshot_interval_s", 0)),
+        auto_screenshot_quality=int(raw.get("auto_screenshot_quality", 0)),
         actions=actions,
         screenshot_targets=targets,
     )
@@ -224,6 +232,7 @@ def _do_wait(
     label: str,
     *,
     auto_interval: float = 0,
+    jpeg_quality: int = 0,
     targets: list[ScreenshotTarget] | None = None,
     log_dirs: dict[str, Path] | None = None,
     step_label: str = "",
@@ -260,7 +269,7 @@ def _do_wait(
             for t in targets:
                 shot_path = log_dirs[t.name] / f"{ts}_loop{loop_num}_{step_label}_auto{shot_count:04d}.png"
                 try:
-                    take_screenshot(t.adb_serial, shot_path)
+                    take_screenshot(t.adb_serial, shot_path, jpeg_quality=jpeg_quality)
                 except Exception:
                     pass
             next_shot += auto_interval
@@ -327,8 +336,9 @@ def worker(config: AppConfig, stop_event: threading.Event) -> None:
                 step_auto = auto_ss if action.auto_screenshot else 0
 
                 if _do_wait(stop_event, action.wait_before_s, f"{tag} wait_before",
-                            auto_interval=step_auto, targets=config.screenshot_targets,
-                            log_dirs=log_dirs, step_label=f"s{i}_before", loop_num=loops):
+                            auto_interval=step_auto, jpeg_quality=config.auto_screenshot_quality,
+                            targets=config.screenshot_targets, log_dirs=log_dirs,
+                            step_label=f"s{i}_before", loop_num=loops):
                     break
 
                 elapsed = time.time() - loop_started
@@ -394,8 +404,9 @@ def worker(config: AppConfig, stop_event: threading.Event) -> None:
                     raise RuntimeError(f"unsupported action: {action.action}")
 
                 if _do_wait(stop_event, action.delay_after_s, f"{tag} delay",
-                            auto_interval=step_auto, targets=config.screenshot_targets,
-                            log_dirs=log_dirs, step_label=f"s{i}", loop_num=loops):
+                            auto_interval=step_auto, jpeg_quality=config.auto_screenshot_quality,
+                            targets=config.screenshot_targets, log_dirs=log_dirs,
+                            step_label=f"s{i}", loop_num=loops):
                     break
 
             loop_elapsed = time.time() - loop_started
