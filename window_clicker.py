@@ -161,7 +161,7 @@ class TapAction:
     screenshot_name: str = ""
     app_package: str = ""
     text: str = ""
-    auto_screenshot: bool = True
+    auto_screenshot: bool = False
 
 
 @dataclass
@@ -198,7 +198,7 @@ def _parse_tap(t: dict) -> TapAction:
         screenshot_name=str(t.get("screenshot_name", "")),
         app_package=str(t.get("app_package", "")),
         text=str(t.get("text", "")),
-        auto_screenshot=bool(t.get("auto_screenshot", True)),
+        auto_screenshot=bool(t.get("auto_screenshot", False)),
     )
 
 
@@ -361,10 +361,17 @@ def worker(config: AppConfig, stop_event: threading.Event) -> None:
                 elif action.action == "pc_screenshot":
                     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                     label = action.screenshot_name or f"step{i}"
-                    shot_path = config.log_dir / f"{ts}_loop{loops}_pc_{label}.png"
+                    fname = f"{ts}_loop{loops}_pc_{label}.png"
                     try:
-                        pyautogui.screenshot(str(shot_path))
-                        print(f"  {tag} pc_screenshot saved: {shot_path} t+{elapsed:.1f}s")
+                        img = pyautogui.screenshot()
+                        for t in config.screenshot_targets:
+                            shot_path = log_dirs[t.name] / fname
+                            img.save(str(shot_path))
+                            print(f"  {tag} pc_screenshot [{t.name}] saved t+{elapsed:.1f}s")
+                        if not config.screenshot_targets:
+                            shot_path = config.log_dir / fname
+                            img.save(str(shot_path))
+                            print(f"  {tag} pc_screenshot saved t+{elapsed:.1f}s")
                     except Exception as exc:
                         print(f"  {tag} pc_screenshot failed: {exc}")
 
