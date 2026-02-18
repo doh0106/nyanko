@@ -147,7 +147,7 @@ def wait_with_progress(stop_event: threading.Event, seconds: float, label: str =
 
 @dataclass
 class TapAction:
-    action: Literal["tap", "screenshot", "sleep", "clear_data", "start_app", "stop_app", "clipboard", "app_switch"] = "tap"
+    action: Literal["tap", "screenshot", "pc_screenshot", "sleep", "clear_data", "start_app", "stop_app", "clipboard", "app_switch"] = "tap"
     x: int = 0
     y: int = 0
     wait_before_s: float = 0.0
@@ -286,6 +286,16 @@ def worker(config: AppConfig, stop_event: threading.Event) -> None:
                             print(f"  {tag} screenshot [{t.name}] saved t+{elapsed:.1f}s")
                         except Exception as exc:
                             print(f"  {tag} screenshot [{t.name}] failed: {exc}")
+
+                elif action.action == "pc_screenshot":
+                    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    label = action.screenshot_name or f"step{i}"
+                    shot_path = config.log_dir / f"{ts}_loop{loops}_{label}.png"
+                    try:
+                        pyautogui.screenshot(str(shot_path))
+                        print(f"  {tag} pc_screenshot saved: {shot_path} t+{elapsed:.1f}s")
+                    except Exception as exc:
+                        print(f"  {tag} pc_screenshot failed: {exc}")
 
                 elif action.action == "sleep":
                     print(f"  {tag} sleep {action.delay_after_s:.1f}s t+{elapsed:.1f}s")
