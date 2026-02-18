@@ -155,6 +155,7 @@ class TapAction:
     screenshot_name: str = ""
     app_package: str = ""
     text: str = ""
+    auto_screenshot: bool = True
 
 
 @dataclass
@@ -171,6 +172,7 @@ class AppConfig:
     loop_delay_s: float
     connect_retries: int
     connect_retry_delay_s: float
+    auto_screenshot_interval_s: float
     actions: list[TapAction]
     screenshot_targets: list[ScreenshotTarget]
 
@@ -189,6 +191,7 @@ def _parse_tap(t: dict) -> TapAction:
         screenshot_name=str(t.get("screenshot_name", "")),
         app_package=str(t.get("app_package", "")),
         text=str(t.get("text", "")),
+        auto_screenshot=bool(t.get("auto_screenshot", True)),
     )
 
 
@@ -209,9 +212,60 @@ def load_config(path: Path) -> AppConfig:
         loop_delay_s=float(raw.get("loop_delay_s", 2)),
         connect_retries=int(raw.get("connect_retries", 5)),
         connect_retry_delay_s=float(raw.get("connect_retry_delay_s", 2.0)),
+        auto_screenshot_interval_s=float(raw.get("auto_screenshot_interval_s", 0)),
         actions=actions,
         screenshot_targets=targets,
     )
+
+
+def _do_wait(
+    stop_event: threading.Event,
+    seconds: float,
+    label: str,
+    *,
+    auto_interval: float = 0,
+    targets: list[ScreenshotTarget] | None = None,
+    loop_dir: Path | None = None,
+    step_label: str = "",
+) -> bool:
+    """Wait with progress bar and optional periodic auto-screenshots."""
+    if seconds <= 0:
+        return stop_event.is_set()
+
+    use_auto = auto_interval > 0 and targets and loop_dir
+    if not use_auto:
+        return wait_with_progress(stop_event, seconds, label)
+
+    elapsed = 0.0
+    next_shot = auto_interval
+    shot_count = 0
+
+    while elapsed < seconds:
+        chunk = min(PROGRESS_TICK_S, seconds - elapsed)
+        if stop_event.wait(timeout=chunk):
+            print()
+            return True
+        elapsed += chunk
+
+        pct = min(elapsed / seconds, 1.0)
+        bar_filled = int(pct * 20)
+        bar = "=" * bar_filled + "-" * (20 - bar_filled)
+        shot_info = f" auto:{shot_count}" if shot_count > 0 else ""
+        print(f"\r  {label} [{bar}] {pct:.0%} ({elapsed:.1f}/{seconds:.1f}s){shot_info}", end="", flush=True)
+
+        if elapsed >= next_shot:
+            shot_count += 1
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            for t in targets:
+                shot_path = loop_dir / f"{ts}_{t.name}_{step_label}_auto{shot_count:04d}.png"
+                try:
+                    take_screenshot(t.adb_serial, shot_path)
+                except Exception:
+                    pass
+            next_shot += auto_interval
+
+    print()
+    return stop_event.is_set()
 
 
 # ---------------------------------------------------------------------------
@@ -236,10 +290,13 @@ def worker(config: AppConfig, stop_event: threading.Event) -> None:
     pyautogui.FAILSAFE = False
 
     iter_label = "infinite" if config.iterations == 0 else str(config.iterations)
+    auto_ss = config.auto_screenshot_interval_s
 
     try:
         print(f"=== config: {len(config.actions)} actions, {iter_label} iterations, "
               f"{len(config.screenshot_targets)} targets ===")
+        if auto_ss > 0:
+            print(f"=== auto_screenshot: every {auto_ss}s ===")
         if wait_with_progress(stop_event, config.startup_wait_s, "startup"):
             print("stop requested before startup")
             return
@@ -249,25 +306,25 @@ def worker(config: AppConfig, stop_event: threading.Event) -> None:
             ensure_device(t.adb_serial, retries=config.connect_retries, retry_delay_s=config.connect_retry_delay_s)
             print(f"[{t.name}] connected: {t.adb_serial}")
 
-        # Create log dirs per target
-        log_dirs: dict[str, Path] = {}
-        for t in config.screenshot_targets:
-            d = config.log_dir / t.name
-            d.mkdir(parents=True, exist_ok=True)
-            log_dirs[t.name] = d
-
         loops = 0
         while not stop_event.is_set():
             loops += 1
             loop_started = time.time()
+
+            loop_dir = config.log_dir / f"loop{loops}"
+            loop_dir.mkdir(parents=True, exist_ok=True)
+
             print(f"--- loop {loops}/{iter_label} ({len(config.actions)} actions) ---")
 
             total = len(config.actions)
             for i, action in enumerate(config.actions, start=1):
                 step_pct = f"{(i - 1) / total:.0%}"
                 tag = f"[{i}/{total} {step_pct}]"
+                step_auto = auto_ss if action.auto_screenshot else 0
 
-                if wait_with_progress(stop_event, action.wait_before_s, f"{tag} wait_before"):
+                if _do_wait(stop_event, action.wait_before_s, f"{tag} wait_before",
+                            auto_interval=step_auto, targets=config.screenshot_targets,
+                            loop_dir=loop_dir, step_label=f"s{i}_before"):
                     break
 
                 elapsed = time.time() - loop_started
@@ -280,7 +337,7 @@ def worker(config: AppConfig, stop_event: threading.Event) -> None:
                     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                     label = action.screenshot_name or f"step{i}"
                     for t in config.screenshot_targets:
-                        shot_path = log_dirs[t.name] / f"{ts}_loop{loops}_{label}.png"
+                        shot_path = loop_dir / f"{ts}_{t.name}_{label}.png"
                         try:
                             take_screenshot(t.adb_serial, shot_path)
                             print(f"  {tag} screenshot [{t.name}] saved t+{elapsed:.1f}s")
@@ -290,7 +347,7 @@ def worker(config: AppConfig, stop_event: threading.Event) -> None:
                 elif action.action == "pc_screenshot":
                     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                     label = action.screenshot_name or f"step{i}"
-                    shot_path = config.log_dir / f"{ts}_loop{loops}_{label}.png"
+                    shot_path = loop_dir / f"{ts}_pc_{label}.png"
                     try:
                         pyautogui.screenshot(str(shot_path))
                         print(f"  {tag} pc_screenshot saved: {shot_path} t+{elapsed:.1f}s")
@@ -332,7 +389,9 @@ def worker(config: AppConfig, stop_event: threading.Event) -> None:
                 else:
                     raise RuntimeError(f"unsupported action: {action.action}")
 
-                if wait_with_progress(stop_event, action.delay_after_s, f"{tag} delay"):
+                if _do_wait(stop_event, action.delay_after_s, f"{tag} delay",
+                            auto_interval=step_auto, targets=config.screenshot_targets,
+                            loop_dir=loop_dir, step_label=f"s{i}"):
                     break
 
             loop_elapsed = time.time() - loop_started
